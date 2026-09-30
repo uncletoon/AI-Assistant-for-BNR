@@ -159,6 +159,40 @@ export const api = {
       body: JSON.stringify({ message }),
     });
   },
+
+  async evaluateLoan(payload: {
+    applicationText?: string;
+    offtakeText?: string;
+    applicationData?: unknown;
+    offtakeData?: unknown;
+  }): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>('/scoring/evaluate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async scoreCase(caseId: string): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>(`/scoring/cases/${caseId}/score`, {
+      method: 'POST',
+    });
+  },
+
+  async recordDecision(
+    caseId: string,
+    payload: {
+      decision: 'APPROVE' | 'REJECT' | 'OVERRIDE_APPROVE' | 'OVERRIDE_REJECT';
+      approvedAmountRwf?: string;
+      reason?: string;
+      recommendations?: string;
+      decidedBy?: string;
+    }
+  ): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>(`/scoring/cases/${caseId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 export interface ChatApiResponse {

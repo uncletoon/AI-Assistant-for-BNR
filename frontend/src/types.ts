@@ -68,11 +68,102 @@ export interface ReportData {
   regulatoryNotes: string;
 }
 
+export interface ProofEvent {
+  period: string;
+  eventType: 'LOAN_DISBURSED' | 'LOAN_REPAID' | 'GRAIN_SALE' | 'CONTRACT_SIGNED';
+  description: string;
+  amountRwf?: string;
+  institutionOrBuyer?: string;
+  referenceId?: string;
+  status: 'positive' | 'warning' | 'neutral';
+  timestamp?: number;
+}
+
+export interface AiScoringResult {
+  scoreOutOf100: number;
+  defaultProbability: number;
+  riskBand: 'LOW' | 'MODERATE' | 'HIGH' | 'VERY_HIGH' | 'INSUFFICIENT_DATA';
+  suggestedCreditLimitRwf: string;
+  uncertaintyFlag: boolean;
+  pillars: {
+    repaymentHealthScore: number;
+    cashFlowLiquidityScore: number;
+    offtakeCoverageScore: number;
+    cooperativeCapacityScore: number;
+  };
+  topKeyDrivers: {
+    rank: number;
+    factor: string;
+    impactPoints: number;
+    statement: string;
+    sourceType: string;
+  }[];
+  recommendationSummary: string;
+  approvalConditions: string[];
+}
+
+export interface BackendAssessmentResponse {
+  extractedApplication: {
+    cooperativeName: string;
+    tin: string;
+    sector: string;
+    registrationNo: string;
+    requestedAmountRwf: number;
+    tenorMonths: number;
+    cropType: string;
+    purpose: string;
+    cultivatedHectares?: number;
+    memberFarmers?: number;
+    documentConfidence: number;
+  };
+  extractedOfftake?: {
+    buyerName: string;
+    contractedVolumeKg: number;
+    agreedPriceRwfKg: number;
+    buyerRating?: string;
+    confidence: number;
+  };
+  features: {
+    cooperativeName: string;
+    tin: string;
+    sector: string;
+    requestedAmountRwf: string;
+    tenorMonths: number;
+    historicalTotalBorrowedRwf: string;
+    facilitiesCount: number;
+    settledFacilitiesCount: number;
+    lendingInstitutions: string[];
+    totalInstallments: number;
+    onTimeInstallments: number;
+    onTimeRepaymentRatio: number;
+    maxDaysPastDue: number;
+    totalPenaltiesRwf: string;
+    totalInflowRwf: string;
+    totalOutflowRwf: string;
+    netCashFlowRwf: string;
+    currentBalanceRwf: string;
+    grainSalesVolumeRwf: string;
+    hasVerifiedOfftakeContract: boolean;
+    offtakeBuyerName?: string;
+    contractedVolumeKg?: number;
+    totalContractValueRwf?: string;
+    totalHectares: number;
+    memberCount: number;
+    storageCapacityT: number;
+    recordQuality: number;
+    chronologicalProofEvents: ProofEvent[];
+  };
+  assessment: AiScoringResult;
+  formattedNarrativeProof: string;
+}
+
 export interface StructuredAiData {
   type: 'credit_assessment' | 'portfolio_risk' | 'cooperative_review' | 'risk_report';
   assessment?: CreditAssessmentData;
   portfolio?: PortfolioData;
   report?: ReportData;
+  backendAssessment?: BackendAssessmentResponse;
+  proofEvents?: ProofEvent[];
 }
 
 export interface ChatMessage {
@@ -85,6 +176,8 @@ export interface ChatMessage {
     name: string;
     size: string;
     type: string;
+    fileContent?: string;
+    file?: File;
   }[];
 }
 

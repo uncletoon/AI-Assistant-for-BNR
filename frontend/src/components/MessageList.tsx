@@ -7,7 +7,7 @@ interface MessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
   onOpenReportModal?: (report: ReportData | CreditAssessmentData) => void;
-  onApproveAction?: (applicant: string) => void;
+  onApproveAction?: (applicant: string, reason?: string, decision?: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({

@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.routes.js';
 import { cooperativeRouter } from './routes/cooperative.routes.js';
 import { caseRouter } from './routes/case.routes.js';
 import { chatRouter } from './routes/chat.routes.js';
+import { scoringRouter } from './routes/scoring.routes.js';
 
 // Polyfill BigInt JSON serialization for API responses
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -37,6 +38,7 @@ export function createApp(): express.Application {
   app.use('/api/v1', cooperativeRouter);
   app.use('/api/v1', caseRouter);
   app.use('/api/v1', chatRouter);
+  app.use('/api/v1/scoring', scoringRouter);
 
   // Catch-all 404 for unmatched routes
   app.use((_req, res) => {

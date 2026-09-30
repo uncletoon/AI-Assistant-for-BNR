@@ -9,7 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "lint": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --fileParallelism=false",
     "seed": "tsx prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
 import { prisma } from '../config/db.js';
 import { env } from '../config/env.js';
 import { institutionalDataService } from './institutional.service.js';
+import { assessCooperativeLoan } from '../ai_model/index.js';
 
 export interface ChatResponse {
   reply: string;
@@ -387,7 +388,42 @@ export class AiDataRetrieverService {
       }
     }
 
-    // 5. Specific Cooperative search (by TIN number or Name)
+    // 5. Credit Scoring Assessment & Chronological Proof queries
+    if (
+      lower.includes('assess') ||
+      lower.includes('evaluate') ||
+      lower.includes('score') ||
+      lower.includes('proof') ||
+      lower.includes('creditworthiness')
+    ) {
+      const matchedCoop = await this.findMatchingCooperative(query);
+      if (matchedCoop) {
+        const assessmentResponse = await assessCooperativeLoan({
+          applicationDocument: '',
+          preExtractedApplication: {
+            cooperativeName: matchedCoop.name,
+            tin: matchedCoop.tin,
+            sector: matchedCoop.sector,
+            registrationNo: matchedCoop.registrationNo,
+            requestedAmountRwf: 25000000,
+            tenorMonths: 6,
+            cropType: 'Maize',
+            purpose: 'Seasonal input financing and aggregation for Season 2026A',
+            cultivatedHectares: matchedCoop.totalHectares,
+            memberFarmers: matchedCoop.memberCount,
+            documentConfidence: 0.98,
+          },
+        });
+
+        return {
+          reply: assessmentResponse.formattedNarrativeProof,
+          source: 'database_retriever',
+          data: assessmentResponse,
+        };
+      }
+    }
+
+    // 6. Specific Cooperative search (by TIN number or Name)
     const specificCoop = await this.findMatchingCooperative(query);
     if (specificCoop) {
       const profile = await institutionalDataService.getInstitutionalProfile(specificCoop.id);

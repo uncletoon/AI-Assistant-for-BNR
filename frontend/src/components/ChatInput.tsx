@@ -7,13 +7,23 @@ import {
   FileText,
   Check,
   ShieldAlert,
+  Upload,
+  FileUp,
 } from 'lucide-react';
 import { SAMPLE_DOCUMENTS } from '../data/mockData';
+
+export interface FileAttachmentItem {
+  name: string;
+  size: string;
+  type: string;
+  fileContent?: string;
+  file?: File;
+}
 
 interface ChatInputProps {
   onSendMessage: (
     message: string,
-    attachments?: { name: string; size: string; type: string }[]
+    attachments?: FileAttachmentItem[]
   ) => void;
   isLoading: boolean;
   initialValue?: string;
@@ -26,11 +36,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 }) => {
   const [input, setInput] = useState(initialValue);
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
-  const [selectedAttachments, setSelectedAttachments] = useState<
-    { name: string; size: string; type: string }[]
-  >([]);
+  const [selectedAttachments, setSelectedAttachments] = useState<FileAttachmentItem[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialValue) {
@@ -51,6 +61,81 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const processUploadedFiles = async (files: FileList | File[]) => {
+    const newItems: FileAttachmentItem[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const sizeStr = formatFileSize(file.size);
+
+      // Read file content
+      const content = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        if (
+          file.type.includes('text') ||
+          file.type.includes('csv') ||
+          file.name.endsWith('.txt') ||
+          file.name.endsWith('.csv')
+        ) {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsText(file);
+        } else {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        }
+      });
+
+      newItems.push({
+        name: file.name,
+        size: sizeStr,
+        type: file.type || 'application/octet-stream',
+        fileContent: content,
+        file,
+      });
+    }
+
+    setSelectedAttachments((prev) => [...prev, ...newItems]);
+    setShowAttachmentMenu(false);
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await processUploadedFiles(e.target.files);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processUploadedFiles(e.dataTransfer.files);
+    }
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -77,12 +162,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
-  const toggleAttachment = (doc: (typeof SAMPLE_DOCUMENTS)[0]) => {
+  const toggleSampleAttachment = (doc: (typeof SAMPLE_DOCUMENTS)[0]) => {
     const exists = selectedAttachments.some((a) => a.name === doc.name);
     if (exists) {
       setSelectedAttachments((prev) => prev.filter((a) => a.name !== doc.name));
     } else {
-      setSelectedAttachments((prev) => [...prev, doc]);
+      setSelectedAttachments((prev) => [
+        ...prev,
+        {
+          name: doc.name,
+          size: doc.size,
+          type: doc.type,
+        },
+      ]);
     }
   };
 
@@ -92,21 +184,37 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto px-4 sm:px-0">
+      {/* Hidden File Input for Native File Upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.csv,.xlsx,.xls,.docx,.txt,.png,.jpg,.jpeg"
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
       {/* Attached Files Pill Container */}
       {selectedAttachments.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2 items-center">
           {selectedAttachments.map((doc) => (
             <div
               key={doc.name}
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-stone-200 rounded-lg text-xs text-stone-700 shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#2FA084]/40 rounded-xl text-xs text-stone-800 shadow-2xs"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#1F6F5F]" />
+              {doc.name.endsWith('.pdf') ? (
+                <FileText className="w-3.5 h-3.5 text-red-500" />
+              ) : doc.name.endsWith('.xlsx') || doc.name.endsWith('.csv') ? (
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <FileUp className="w-3.5 h-3.5 text-[#1F6F5F]" />
+              )}
               <span className="font-medium truncate max-w-[200px]">{doc.name}</span>
               <span className="text-stone-400 text-[10px]">({doc.size})</span>
               <button
                 type="button"
                 onClick={() => removeAttachment(doc.name)}
-                className="text-stone-400 hover:text-stone-700 p-0.5 rounded-xs"
+                className="text-stone-400 hover:text-stone-700 p-0.5 rounded-xs cursor-pointer ml-1"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -115,8 +223,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       )}
 
-      {/* Main Rounded Input Bar */}
-      <div className="relative bg-white rounded-full sm:rounded-2xl border border-stone-200/90 shadow-sm hover:shadow-md focus-within:border-[#2FA084] focus-within:ring-2 focus-within:ring-[#2FA084]/20 transition-all duration-200">
+      {/* Main Rounded Input Bar with Drag & Drop Zone */}
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`relative bg-white rounded-full sm:rounded-2xl border transition-all duration-200 ${
+          isDragging
+            ? 'border-[#2FA084] ring-4 ring-[#2FA084]/20 bg-[#6FCF97]/10'
+            : 'border-stone-200/90 shadow-sm hover:shadow-md focus-within:border-[#2FA084] focus-within:ring-2 focus-within:ring-[#2FA084]/20'
+        }`}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/90 rounded-2xl pointer-events-none">
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#1F6F5F]">
+              <Upload className="w-4 h-4 animate-bounce" />
+              <span>Drop application form or offtake contract here</span>
+            </div>
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="flex items-center px-2.5 sm:px-3 py-2 gap-2"
@@ -126,7 +252,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <button
               type="button"
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
-              title="Attach cooperative audit or satellite records"
+              title="Attach loan application, contract, or ledger"
               className="p-2 sm:p-2.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-full transition-colors flex items-center justify-center cursor-pointer"
             >
               <Paperclip className="w-4 h-4 sm:w-5 sm:h-5 text-stone-500" />
@@ -134,50 +260,66 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
             {/* Attachment Popover Menu */}
             {showAttachmentMenu && (
-              <div className="absolute bottom-12 left-0 w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-3 z-30 space-y-2">
+              <div className="absolute bottom-12 left-0 w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-3 z-30 space-y-2.5">
                 <div className="flex items-center justify-between pb-1.5 border-b border-stone-100">
                   <span className="text-xs font-semibold text-stone-800">
-                    Attach Credit Documents
+                    Upload Loan Evidence
                   </span>
-                  <span className="text-[10px] text-stone-400">RCA / EAX Repo</span>
+                  <span className="text-[10px] text-stone-400">PDF / XLSX / Docs</span>
                 </div>
 
-                <div className="space-y-1 max-h-52 overflow-y-auto">
-                  {SAMPLE_DOCUMENTS.map((doc) => {
-                    const isSelected = selectedAttachments.some(
-                      (a) => a.name === doc.name
-                    );
-                    return (
-                      <button
-                        key={doc.name}
-                        type="button"
-                        onClick={() => toggleAttachment(doc)}
-                        className={`w-full text-left p-2 rounded-xl text-xs flex items-center justify-between transition-colors ${
-                          isSelected
-                            ? 'bg-[#6FCF97]/20 border border-[#2FA084]/30 text-stone-900'
-                            : 'hover:bg-stone-50 text-stone-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <FileText
-                            className={`w-3.5 h-3.5 shrink-0 ${
-                              isSelected ? 'text-[#1F6F5F]' : 'text-stone-400'
-                            }`}
-                          />
-                          <div className="truncate">
-                            <p className="font-medium truncate">{doc.name}</p>
-                            <p className="text-[10px] text-stone-400">
-                              {doc.type} · {doc.size}
-                            </p>
-                          </div>
-                        </div>
+                {/* Direct Upload Button from Computer */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#1F6F5F] hover:bg-[#18574a] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Files from Computer</span>
+                </button>
 
-                        {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-[#1F6F5F] shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
+                {/* Sample Preloaded Repository Documents */}
+                <div className="pt-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 block mb-1">
+                    Or select sample documents
+                  </span>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {SAMPLE_DOCUMENTS.map((doc) => {
+                      const isSelected = selectedAttachments.some(
+                        (a) => a.name === doc.name
+                      );
+                      return (
+                        <button
+                          key={doc.name}
+                          type="button"
+                          onClick={() => toggleSampleAttachment(doc)}
+                          className={`w-full text-left p-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#6FCF97]/20 border border-[#2FA084]/30 text-stone-900'
+                              : 'hover:bg-stone-50 text-stone-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <FileText
+                              className={`w-3.5 h-3.5 shrink-0 ${
+                                isSelected ? 'text-[#1F6F5F]' : 'text-stone-400'
+                              }`}
+                            />
+                            <div className="truncate">
+                              <p className="font-medium truncate">{doc.name}</p>
+                              <p className="text-[10px] text-stone-400">
+                                {doc.type} · {doc.size}
+                              </p>
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <Check className="w-3.5 h-3.5 text-[#1F6F5F] shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="pt-1 text-[11px] text-stone-400 flex items-center gap-1 border-t border-stone-100">
@@ -195,7 +337,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about credit risk, an applicant, or a cooperative..."
+            placeholder="Ask about credit risk or attach cooperative loan documents..."
             disabled={isLoading}
             className="flex-1 bg-transparent border-0 resize-none py-1.5 sm:py-2 text-stone-800 placeholder-stone-400 text-xs sm:text-sm focus:outline-none focus:ring-0 max-h-24 overflow-y-auto"
           />
