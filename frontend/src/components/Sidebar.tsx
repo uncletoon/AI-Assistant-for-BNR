@@ -15,8 +15,11 @@ import { AssessmentHistoryItem } from '../types';
 interface SidebarProps {
   assessments: AssessmentHistoryItem[];
   activeId: string | null;
+  currentView: 'chat' | 'registry';
   onSelectAssessment: (item: AssessmentHistoryItem) => void;
   onNewAssessment: () => void;
+  onOpenRegistry: () => void;
+  cooperativesCount: number;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -24,8 +27,11 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   assessments,
   activeId,
+  currentView,
   onSelectAssessment,
   onNewAssessment,
+  onOpenRegistry,
+  cooperativesCount,
   isOpen,
   onClose,
 }) => {
@@ -54,11 +60,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Header with New Assessment button */}
-        <div className="p-4 border-b border-stone-200/70 space-y-3 bg-white/60">
+        {/* Header with New Assessment button & Registry Page button */}
+        <div className="p-4 border-b border-stone-200/70 space-y-2.5 bg-white/60">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-stone-600">
-              Recent Assessments
+              AgriCredit Pilot
             </span>
             <button
               onClick={onClose}
@@ -69,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
+          {/* + New Assessment button */}
           <button
             onClick={() => {
               onNewAssessment();
@@ -80,9 +87,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>+ New Assessment</span>
           </button>
 
+          {/* Cooperatives Registry page button (placed directly below + New Assessment) */}
+          <button
+            onClick={() => {
+              onOpenRegistry();
+              onClose();
+            }}
+            className={`w-full flex items-center justify-between py-2 px-3 rounded-xl text-xs font-medium border transition-all cursor-pointer ${
+              currentView === 'registry'
+                ? 'bg-emerald-50 text-[#1F6F5F] border-emerald-200 font-semibold'
+                : 'bg-white hover:bg-stone-100/70 text-stone-700 border-stone-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-[#1F6F5F]" />
+              <span>Cooperatives Registry</span>
+            </div>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">
+              {cooperativesCount}
+            </span>
+          </button>
+
           {/* Quick filter search */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-2.5" />
+          <div className="relative pt-1">
+            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-3.5" />
             <input
               type="text"
               placeholder="Search past audits..."

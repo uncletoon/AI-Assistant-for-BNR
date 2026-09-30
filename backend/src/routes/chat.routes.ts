@@ -1,0 +1,6 @@
+import { Router } from 'express';
+import { handleChatMessage } from '../controllers/chat.controller.js';
+
+export const chatRouter = Router();
+
+chatRouter.post('/chat', handleChatMessage);

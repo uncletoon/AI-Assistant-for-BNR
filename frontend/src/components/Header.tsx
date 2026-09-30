@@ -63,6 +63,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
+
+
       {/* Right: Notifications & Credit Officer Profile */}
       <div className="flex items-center gap-3">
         <button

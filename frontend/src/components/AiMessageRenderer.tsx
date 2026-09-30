@@ -322,7 +322,7 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
             <div className="flex items-center gap-2 text-xs text-stone-700">
               <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0" />
               <span>
-                Recommended for approval with <strong>RWF 75M limit</strong> under standard warehouse receipt covenants.
+                Recommended for approval with <strong>{structuredData.assessment.recommendedCreditLimit}</strong> under standard warehouse receipt covenants.
               </span>
             </div>
 

@@ -2,6 +2,12 @@ node_modules/
 build/
 dist/
 coverage/
+.agents/
+docs/
+AGENT_PROMPT.md
+PRD_AI_Assisted_Credit_Risk_Assessment_MVP.docx
+CLAUDE.md
+AGENTS.md
 .DS_Store
 *.log
 .env*
