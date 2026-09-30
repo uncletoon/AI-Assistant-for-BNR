@@ -1,0 +1,6 @@
+{
+  "name": "AgriCredit AI",
+  "description": "Enterprise AI Credit Risk Assistant for agricultural lending, cooperatives, and credit assessment.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

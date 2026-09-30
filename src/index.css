@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-agri-dark: #1F6F5F;
+  --color-agri-primary: #2FA084;
+  --color-agri-accent: #6FCF97;
+  --color-agri-bg: #EEEEEE;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar and smooth animations */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
