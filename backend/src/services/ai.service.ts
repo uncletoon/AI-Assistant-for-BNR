@@ -731,16 +731,8 @@ export class AiDataRetrieverService {
       }
     }
 
-    // 4. Default to latest case in database
-    return prisma.loanCase.findFirst({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        cooperative: true,
-        scores: { include: { reasons: { orderBy: { rank: 'asc' } } }, orderBy: { createdAt: 'desc' } },
-        decision: true,
-        documents: true,
-      },
-    });
+    // 4. If no explicit context or query match, return null (strict independence)
+    return null;
   }
 
   private async findMatchingCooperative(query: string, context?: ChatContext) {

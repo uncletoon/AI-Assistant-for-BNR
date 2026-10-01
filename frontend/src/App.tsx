@@ -1198,13 +1198,13 @@ export default function App() {
             proofEvents: backendData.features.chronologicalProofEvents,
           };
         } else if (
+          activeAssessmentId &&
           res.data &&
           typeof res.data === "object" &&
           "cooperative" in (res.data as Record<string, unknown>) &&
           "scores" in (res.data as Record<string, unknown>) &&
-          (lower.includes("assessment") ||
-            lower.includes("docket") ||
-            lower.includes("score"))
+          Array.isArray((res.data as any).scores) &&
+          (res.data as any).scores.length > 0
         ) {
           try {
             const caseRecord = res.data as LoanCaseRecord;
@@ -1214,59 +1214,6 @@ export default function App() {
             };
           } catch {
             // Keep text reply
-          }
-        }
-      }
-
-      // Attach structured visual widgets if requested and not yet populated
-      if (!structuredData) {
-        if (
-          lower.includes("portfolio") ||
-          lower.includes("exposure") ||
-          lower.includes("macro") ||
-          lower.includes("npl")
-        ) {
-          structuredData = {
-            type: "portfolio_risk",
-            portfolio: buildGasaboPortfolioData(dbCases, dbCooperatives),
-          };
-        } else if (
-          lower.includes("report") ||
-          lower.includes("committee") ||
-          lower.includes("memorandum") ||
-          lower.includes("bnr") ||
-          lower.includes("docket")
-        ) {
-          const targetCoop =
-            dbCases[0]?.cooperative.name ||
-            dbCooperatives[0]?.name ||
-            "Koperative Twitezimbere Gasabo";
-          structuredData = {
-            type: "risk_report",
-            report: buildGasaboRiskReport(targetCoop),
-          };
-        } else if (
-          lower.includes("assessment") ||
-          lower.includes("score") ||
-          lower.includes("evaluate")
-        ) {
-          const matchedCase = dbCases.find(
-            (c) =>
-              lower.includes(c.cooperative.name.toLowerCase()) ||
-              lower.includes(c.cooperative.sector.toLowerCase()) ||
-              lower.includes("gasabo") ||
-              lower.includes("twitezimbere"),
-          );
-          if (matchedCase) {
-            structuredData = {
-              type: "credit_assessment",
-              assessment: convertDbCaseToAssessment(matchedCase),
-            };
-          } else if (dbCases.length > 0) {
-            structuredData = {
-              type: "credit_assessment",
-              assessment: convertDbCaseToAssessment(dbCases[0]),
-            };
           }
         }
       }
