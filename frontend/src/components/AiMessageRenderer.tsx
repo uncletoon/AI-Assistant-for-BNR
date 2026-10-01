@@ -32,7 +32,7 @@ function formatInline(str: string): React.ReactNode[] {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={i} className="font-semibold text-stone-900">
+        <strong key={i} className="font-bold text-stone-950">
           {part.slice(2, -2)}
         </strong>
       );
@@ -63,9 +63,9 @@ function renderFormattedContent(text: string) {
 
     if (isOriginalHeader || isUppercaseHeader) {
       return (
-        <div key={idx} className="mt-3.5 mb-2 pt-1 border-b border-stone-100/90 pb-1">
-          <h4 className="text-xs font-bold text-[#1F6F5F] tracking-wider uppercase flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#2FA084]" />
+        <div key={idx} className="mt-4 mb-2 pt-1.5 border-b border-stone-200 pb-1.5">
+          <h4 className="text-xs font-extrabold text-[#134e4a] tracking-wider uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#1F6F5F]" />
             {formatInline(trimmed.replace(/:$/, ""))}
           </h4>
         </div>
@@ -79,10 +79,10 @@ function renderFormattedContent(text: string) {
     ) {
       return (
         <div key={idx} className="flex items-start gap-2 my-1 pl-1">
-          <span className="text-[#2FA084] font-bold text-sm leading-tight">
+          <span className="text-[#1F6F5F] font-bold text-base leading-tight">
             •
           </span>
-          <span className="text-stone-700 text-sm leading-relaxed">
+          <span className="text-stone-900 text-sm leading-relaxed font-normal">
             {formatInline(trimmed.replace(/^[•\-\*]\s+/, ""))}
           </span>
         </div>
@@ -93,11 +93,11 @@ function renderFormattedContent(text: string) {
     if (/^\d+\.\s+/.test(trimmed)) {
       const match = trimmed.match(/^(\d+)\.\s+(.*)$/);
       return (
-        <div key={idx} className="flex items-start gap-2 my-1.5 pl-1">
+        <div key={idx} className="flex items-start gap-2.5 my-2 pl-1">
           <span className="text-xs font-bold text-white bg-[#1F6F5F] w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
             {match ? match[1] : "•"}
           </span>
-          <span className="text-stone-700 text-sm leading-relaxed">
+          <span className="text-stone-900 text-sm leading-relaxed font-normal">
             {formatInline(match ? match[2] : trimmed)}
           </span>
         </div>
@@ -105,7 +105,7 @@ function renderFormattedContent(text: string) {
     }
 
     return (
-      <p key={idx} className="text-stone-700 text-sm leading-relaxed my-1">
+      <p key={idx} className="text-stone-900 text-sm leading-relaxed my-1 font-normal">
         {formatInline(trimmed)}
       </p>
     );
@@ -198,9 +198,9 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
       : []);
 
   return (
-    <div className="space-y-4 text-stone-800 text-sm leading-relaxed max-w-3xl">
+    <div className="space-y-4 text-stone-900 text-sm leading-relaxed w-full">
       {/* Formatted Message Content */}
-      <div className="text-stone-800 font-normal">
+      <div className="text-stone-900 font-normal">
         {renderFormattedContent(content)}
       </div>
 
@@ -209,15 +209,15 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
         structuredData.assessment && (
           <div className="mt-4 space-y-4">
             {/* Top Score & Summary Banner */}
-            <div className="bg-gradient-to-br from-white to-stone-50 border border-stone-200/90 rounded-2xl p-5 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+            <div className="bg-gradient-to-br from-white to-stone-50 border border-stone-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-stone-900 text-base">
+                    <span className="font-bold text-stone-950 text-base">
                       {structuredData.assessment.applicantName}
                     </span>
                   </div>
-                  <p className="text-xs text-stone-500">
+                  <p className="text-xs text-stone-700 font-medium mt-0.5">
                     {structuredData.assessment.applicantType} ·{" "}
                     {structuredData.assessment.location}
                   </p>
@@ -231,9 +231,9 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
                       onOpenReportModal &&
                       onOpenReportModal(structuredData.assessment!)
                     }
-                    className="px-3 py-1.5 text-xs font-medium text-[#1F6F5F] bg-[#6FCF97]/20 hover:bg-[#6FCF97]/30 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-semibold text-[#134e4a] bg-[#6FCF97]/25 hover:bg-[#6FCF97]/40 border border-[#2FA084]/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    <FileText className="w-3.5 h-3.5" />
+                    <FileText className="w-3.5 h-3.5 text-[#134e4a]" />
                     <span>Credit Memo</span>
                   </button>
                 </div>
@@ -242,68 +242,68 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
               {/* Score Grid Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
                 {/* Card 1: Credit Score */}
-                <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs">
-                  <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
                     Credit Score
                   </span>
                   <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-bold text-[#1F6F5F] font-mono tabular-nums">
+                    <span className="text-2xl font-black text-[#134e4a] font-mono tabular-nums">
                       {structuredData.assessment.score}
                     </span>
-                    <span className="text-xs text-stone-400 font-mono">
+                    <span className="text-xs text-stone-600 font-mono font-semibold">
                       /{structuredData.assessment.maxScore}
                     </span>
                   </div>
                   <div className="mt-1.5 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-[#2FA084]" />
-                    <span className="text-[11px] font-semibold text-[#1F6F5F]">
+                    <span className="text-[11px] font-bold text-[#134e4a]">
                       {structuredData.assessment.riskLevel}
                     </span>
                   </div>
                 </div>
 
                 {/* Card 2: Risk Level */}
-                <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs">
-                  <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
                     Default Probability
                   </span>
-                  <div className="text-2xl font-bold text-stone-800 font-mono tabular-nums mt-1">
+                  <div className="text-2xl font-black text-stone-950 font-mono tabular-nums mt-1">
                     {structuredData.assessment.defaultProbability}
                   </div>
-                  <p className="text-[11px] text-[#2FA084] font-medium mt-1.5">
+                  <p className="text-[11px] text-[#134e4a] font-bold mt-1.5">
                     Well below 8.0% threshold
                   </p>
                 </div>
 
                 {/* Card 3: Recommended Limit */}
-                <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs col-span-2 sm:col-span-2">
-                  <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs col-span-2 sm:col-span-2">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
                     Recommended Limit
                   </span>
-                  <div className="text-xl sm:text-2xl font-bold text-[#1F6F5F] font-mono tabular-nums mt-1">
+                  <div className="text-xl sm:text-2xl font-black text-[#134e4a] font-mono tabular-nums mt-1">
                     {structuredData.assessment.recommendedCreditLimit}
                   </div>
-                  <p className="text-[11px] text-stone-500 mt-1.5">
+                  <p className="text-[11px] text-stone-700 font-medium mt-1.5">
                     100% covered by warehoused maize collateral & contracts
                   </p>
                 </div>
               </div>
 
               {/* Key Factors */}
-              <div className="mt-4 pt-4 border-t border-stone-100">
-                <h4 className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2.5">
+              <div className="mt-4 pt-4 border-t border-stone-200">
+                <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider mb-2.5">
                   Key Assessment Factors
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {structuredData.assessment.keyFactors.map((factor, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start gap-2 text-xs text-stone-700 bg-white/80 p-2.5 rounded-lg border border-stone-100"
+                      className="flex items-start gap-2 text-xs font-medium text-stone-900 bg-white p-2.5 rounded-lg border border-stone-200"
                     >
                       {factor.type === "positive" ? (
                         <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0 mt-0.5" />
                       ) : (
-                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       )}
                       <span>{factor.text}</span>
                     </div>
@@ -313,20 +313,20 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
             </div>
 
             {/* Chronological Proof Timeline */}
-            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200">
                 <div className="flex items-center gap-2">
-                  <History className="w-4 h-4 text-[#1F6F5F]" />
-                  <h4 className="text-xs font-semibold text-stone-900">
+                  <History className="w-4 h-4 text-[#134e4a]" />
+                  <h4 className="text-xs font-bold text-stone-950 uppercase tracking-wider">
                     Chronological Ledger & Evidence Proof
                   </h4>
                 </div>
-                <span className="text-[11px] font-medium text-[#1F6F5F] bg-[#6FCF97]/20 px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-bold text-[#134e4a] bg-[#6FCF97]/25 px-2.5 py-0.5 rounded-full border border-[#2FA084]/30">
                   {proofEvents.length} Verified Records
                 </span>
               </div>
 
-              <div className="space-y-3 relative pl-4 border-l-2 border-[#2FA084]/40 ml-2 pt-1">
+              <div className="space-y-3 relative pl-4 border-l-2 border-[#2FA084]/50 ml-2 pt-1">
                 {proofEvents.map((evt, idx) => (
                   <div key={idx} className="relative group">
                     {/* Timeline dot */}
@@ -334,34 +334,34 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
                       <span className="w-1.5 h-1.5 rounded-full bg-white" />
                     </div>
 
-                    <div className="bg-stone-50/80 hover:bg-stone-50 border border-stone-200/70 p-3 rounded-xl transition-all">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-[11px] font-bold text-stone-900">
+                    <div className="bg-stone-50/90 hover:bg-stone-50 border border-stone-200 p-3.5 rounded-xl transition-all">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-xs font-extrabold text-stone-950">
                           {evt.period}
                         </span>
                         <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md ${
                             evt.eventType === "LOAN_DISBURSED"
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              ? "bg-blue-100 text-blue-900 border border-blue-300"
                               : evt.eventType === "LOAN_REPAID"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
                                 : evt.eventType === "GRAIN_SALE"
-                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                                  ? "bg-purple-100 text-purple-900 border border-purple-300"
+                                  : "bg-amber-100 text-amber-900 border border-amber-300"
                           }`}
                         >
                           {evt.eventType.replace("_", " ")}
                         </span>
                       </div>
-                      <p className="text-xs text-stone-700 leading-relaxed font-normal">
+                      <p className="text-xs text-stone-900 leading-relaxed font-normal">
                         {evt.description}
                       </p>
                       {evt.institutionOrBuyer && (
-                        <div className="mt-2 text-[11px] text-stone-500 flex items-center gap-1.5 pt-1.5 border-t border-stone-200/60">
-                          <Building2 className="w-3 h-3 text-stone-400" />
+                        <div className="mt-2 text-xs text-stone-700 flex items-center gap-1.5 pt-2 border-t border-stone-200">
+                          <Building2 className="w-3.5 h-3.5 text-stone-500" />
                           <span>
                             Verified Counterparty:{" "}
-                            <strong className="font-semibold text-stone-700">
+                            <strong className="font-bold text-stone-950">
                               {evt.institutionOrBuyer}
                             </strong>
                           </span>
@@ -374,54 +374,54 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
             </div>
 
             {/* Risk Pillars from Scoring Engine & Database (Direct Display) */}
-            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#1F6F5F]" />
-                  <h4 className="text-xs font-semibold text-stone-900">
+                  <ShieldCheck className="w-4 h-4 text-[#134e4a]" />
+                  <h4 className="text-xs font-bold text-stone-950 uppercase tracking-wider">
                     Risk Pillar Scores & Safeguards (PostgreSQL & Calibrated Model)
                   </h4>
                 </div>
-                <span className="text-[11px] font-semibold text-[#1F6F5F] bg-[#6FCF97]/20 px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-bold text-[#134e4a] bg-[#6FCF97]/25 px-2.5 py-0.5 rounded-full border border-[#2FA084]/30">
                   Score: {structuredData.assessment.score}/100
                 </span>
               </div>
-              <div className="space-y-3 pt-1">
+              <div className="space-y-3.5 pt-1">
                 {structuredData.assessment.riskBreakdown.map((item, idx) => (
-                  <div key={idx} className="space-y-1">
+                  <div key={idx} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-stone-800">
+                      <span className="font-bold text-stone-950">
                         {item.category}
                       </span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#1F6F5F]">
+                        <span className="font-mono text-xs font-extrabold text-[#134e4a]">
                           {item.score}/100
                         </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-[#1F6F5F] font-semibold border border-stone-200/60">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-[#134e4a] font-bold border border-stone-200">
                           {item.level}
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                       <div
                         style={{ width: `${Math.min(100, Math.max(0, item.score))}%` }}
-                        className="bg-[#2FA084] h-full rounded-full transition-all duration-300"
+                        className="bg-[#1F6F5F] h-full rounded-full transition-all duration-300"
                       />
                     </div>
-                    <p className="text-[11px] text-stone-600 leading-normal">{item.notes}</p>
+                    <p className="text-xs text-stone-800 leading-normal font-medium">{item.notes}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Officer Approval & Override Actions Bar */}
-            <div className="bg-[#1F6F5F]/5 border border-[#1F6F5F]/20 rounded-xl p-3.5 space-y-3">
+            <div className="bg-[#1F6F5F]/10 border border-[#1F6F5F]/30 rounded-xl p-4 space-y-3">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-stone-700">
+                <div className="flex items-center gap-2 text-xs text-stone-900 font-medium">
                   <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0" />
                   <span>
                     Recommended for approval with{" "}
-                    <strong>
+                    <strong className="font-bold text-stone-950">
                       {structuredData.assessment.recommendedCreditLimit}
                     </strong>{" "}
                     under standard warehouse receipt covenants.
@@ -549,90 +549,89 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
       {structuredData?.type === "portfolio_risk" &&
         structuredData.portfolio && (
           <div className="mt-4 space-y-4">
-            <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+            <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
                 <div>
-                  <h3 className="font-semibold text-stone-900 text-sm">
+                  <h3 className="font-bold text-stone-950 text-sm">
                     Agricultural Lending Portfolio Risk (Q3 Assessment)
                   </h3>
-                  <p className="text-xs text-stone-400">
-                    Total cooperative loans tracked under BNR prudential
-                    criteria
+                  <p className="text-xs text-stone-700 font-medium">
+                    Total cooperative loans tracked under BNR prudential criteria
                   </p>
                 </div>
-                <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-[#6FCF97]/20 text-[#1F6F5F]">
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#6FCF97]/25 text-[#134e4a] border border-[#2FA084]/30">
                   97.6% Performing
                 </span>
               </div>
 
               {/* Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
-                <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                  <span className="text-[11px] text-stone-500 block">
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
                     Total Exposure
                   </span>
-                  <span className="text-lg font-bold text-[#1F6F5F] font-mono">
+                  <span className="text-lg font-black text-[#134e4a] font-mono">
                     {structuredData.portfolio.totalExposure}
                   </span>
-                  <span className="text-[10px] text-stone-400 block mt-0.5">
+                  <span className="text-[10px] text-stone-600 font-medium block mt-0.5">
                     142 active facilities
                   </span>
                 </div>
-                <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                  <span className="text-[11px] text-stone-500 block">
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
                     Non-Performing (NPL)
                   </span>
-                  <span className="text-lg font-bold text-[#2FA084] font-mono">
+                  <span className="text-lg font-black text-[#2FA084] font-mono">
                     {structuredData.portfolio.nplRate}
                   </span>
-                  <span className="text-[10px] text-[#1F6F5F] block mt-0.5 font-medium">
+                  <span className="text-[10px] text-[#134e4a] block mt-0.5 font-bold">
                     BNR limit &lt; 5.0%
                   </span>
                 </div>
-                <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                  <span className="text-[11px] text-stone-500 block">
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
                     Weighted Avg Score
                   </span>
-                  <span className="text-lg font-bold text-stone-800 font-mono">
+                  <span className="text-lg font-black text-stone-950 font-mono">
                     {structuredData.portfolio.weightedCreditScore}
                   </span>
-                  <span className="text-[10px] text-stone-400 block mt-0.5">
+                  <span className="text-[10px] text-stone-600 font-semibold block mt-0.5">
                     Category: Low Risk
                   </span>
                 </div>
-                <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                  <span className="text-[11px] text-stone-500 block">
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
                     Co-ops Monitored
                   </span>
-                  <span className="text-lg font-bold text-stone-800 font-mono">
+                  <span className="text-lg font-black text-stone-950 font-mono">
                     {structuredData.portfolio.cooperativeCount}
                   </span>
-                  <span className="text-[10px] text-stone-400 block mt-0.5">
+                  <span className="text-[10px] text-stone-600 font-semibold block mt-0.5">
                     Across 30 districts
                   </span>
                 </div>
               </div>
 
               {/* Regional and Crop breakdown */}
-              <div className="mt-4 pt-4 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="mt-4 pt-4 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-xs font-semibold text-stone-700 mb-2">
+                  <h4 className="text-xs font-bold text-stone-950 mb-2">
                     Regional Exposure Distribution
                   </h4>
                   <div className="space-y-2">
                     {structuredData.portfolio.regionalDistribution.map(
                       (reg) => (
                         <div key={reg.region} className="text-xs space-y-1">
-                          <div className="flex justify-between text-stone-600">
+                          <div className="flex justify-between text-stone-800 font-medium">
                             <span className="truncate pr-2">{reg.region}</span>
-                            <span className="font-mono text-stone-900 font-medium">
+                            <span className="font-mono text-stone-950 font-bold">
                               {reg.exposure} ({reg.percentage}%)
                             </span>
                           </div>
-                          <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                             <div
                               style={{ width: `${reg.percentage * 2}%` }}
-                              className="bg-[#2FA084] h-full rounded-full"
+                              className="bg-[#1F6F5F] h-full rounded-full"
                             />
                           </div>
                         </div>
@@ -642,21 +641,21 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
                 </div>
 
                 <div>
-                  <h4 className="text-xs font-semibold text-stone-700 mb-2">
+                  <h4 className="text-xs font-bold text-stone-950 mb-2">
                     Commodity Concentration
                   </h4>
                   <div className="space-y-2">
                     {structuredData.portfolio.cropExposure.map((crop) => (
                       <div
                         key={crop.crop}
-                        className="flex items-center justify-between p-2 rounded-lg bg-stone-50/70 border border-stone-200/50 text-xs"
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-stone-50 border border-stone-200 text-xs"
                       >
-                        <span className="text-stone-700">{crop.crop}</span>
+                        <span className="text-stone-950 font-semibold">{crop.crop}</span>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-medium text-stone-900">
+                          <span className="font-mono font-bold text-stone-950">
                             {crop.percentage}%
                           </span>
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#6FCF97]/20 text-[#1F6F5F]">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#6FCF97]/25 text-[#134e4a] border border-[#2FA084]/30">
                             {crop.riskRating}
                           </span>
                         </div>

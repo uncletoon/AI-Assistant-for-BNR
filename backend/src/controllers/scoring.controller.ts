@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/db.js';
 import { assessCooperativeLoan, documentExtractor } from '../ai_model/index.js';
+import { parseDataUrlOrBuffer } from '../ai_model/document_extractor.js';
 import {
   ScoreBand,
   LoanCaseStatus,
@@ -58,7 +59,20 @@ export async function evaluateCooperativeLoan(
       appFileName = req.file.originalname;
     }
 
+    if (typeof appDocBuffer === 'string' && appDocBuffer.startsWith('data:')) {
+      const parsed = parseDataUrlOrBuffer(appDocBuffer);
+      appDocBuffer = parsed.buffer;
+      appMimeType = parsed.mimeType;
+    }
+
+    if (typeof offtakeDocBuffer === 'string' && offtakeDocBuffer.startsWith('data:')) {
+      const parsed = parseDataUrlOrBuffer(offtakeDocBuffer);
+      offtakeDocBuffer = parsed.buffer;
+      offtakeMimeType = parsed.mimeType;
+    }
+
     const { applicationData, offtakeData } = req.body;
+
 
     if (!appDocBuffer && !applicationData) {
       res.status(400).json({
@@ -519,6 +533,18 @@ export async function extractLoanDocuments(req: Request, res: Response, next: Ne
     } else if (req.file) {
       appBuffer = req.file.buffer;
       appMime = req.file.mimetype;
+    }
+
+    if (typeof appBuffer === 'string' && appBuffer.startsWith('data:')) {
+      const parsed = parseDataUrlOrBuffer(appBuffer);
+      appBuffer = parsed.buffer;
+      appMime = parsed.mimeType;
+    }
+
+    if (typeof offtakeBuffer === 'string' && offtakeBuffer.startsWith('data:')) {
+      const parsed = parseDataUrlOrBuffer(offtakeBuffer);
+      offtakeBuffer = parsed.buffer;
+      offtakeMime = parsed.mimeType;
     }
 
     if (!appBuffer && !offtakeBuffer) {

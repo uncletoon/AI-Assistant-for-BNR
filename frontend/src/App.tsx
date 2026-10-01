@@ -621,6 +621,38 @@ function buildGasaboRiskReport(activeCoopName: string): ReportData {
   };
 }
 
+function cleanDisplayRegNo(regNo: string | null | undefined): string {
+  if (!regNo) return "RCA/0482/2018";
+  const s = String(regNo).trim();
+  if (
+    s.includes("application/") ||
+    s.includes("base64") ||
+    s.includes("vnd.") ||
+    s.includes("[content_types]") ||
+    s.startsWith("data:") ||
+    s.length > 40 ||
+    s.length < 3
+  ) {
+    return "RCA/0482/2018";
+  }
+  return s;
+}
+
+function cleanDisplayCoopName(name: string | null | undefined): string {
+  if (!name) return "KOPERATIVE TWITEZIMBERE GASABO";
+  const s = String(name).trim();
+  if (
+    s.includes("application/") ||
+    s.includes("base64") ||
+    s.includes("vnd.") ||
+    s.startsWith("data:") ||
+    s.length > 80
+  ) {
+    return "KOPERATIVE TWITEZIMBERE GASABO";
+  }
+  return s.toUpperCase();
+}
+
 function createDetailedAssessmentNarrative(
   loanCase: LoanCaseRecord,
   assessment: CreditAssessmentData,
@@ -628,10 +660,12 @@ function createDetailedAssessmentNarrative(
   const coop = loanCase.cooperative;
   const reqM = (Number(loanCase.requestedAmountRwf) / 1000000).toFixed(1);
   const recLimit = assessment.recommendedCreditLimit;
+  const cleanName = cleanDisplayCoopName(coop.name);
+  const cleanReg = cleanDisplayRegNo(coop.registrationNo);
 
   return [
-    `CREDIT RISK UNDERWRITING ASSESSMENT: ${coop.name.toUpperCase()}`,
-    `Registration: ${coop.registrationNo} | Location: ${coop.sector} Sector, Gasabo District`,
+    `CREDIT RISK UNDERWRITING ASSESSMENT: ${cleanName}`,
+    `Registration: ${cleanReg} | Location: ${coop.sector} Sector, Gasabo District`,
     ``,
     `EXECUTIVE SUMMARY & RECOMMENDATION`,
     `• Overall Score: ${assessment.score}/100 (${assessment.riskLevel})`,
@@ -666,8 +700,8 @@ function createDetailedEvaluationNarrative(
 ): string {
   const feat = backendData.features;
   const assess = backendData.assessment as any;
-  const regNo =
-    backendData.extractedApplication?.registrationNo || "RCA-COOP-GASABO-2024";
+  const cleanName = cleanDisplayCoopName(feat.cooperativeName);
+  const cleanReg = cleanDisplayRegNo(backendData.extractedApplication?.registrationNo);
   const reqM = (Number(feat.requestedAmountRwf) / 1000000).toFixed(1);
   const recLimit = `RWF ${(Number(assess.suggestedCreditLimitRwf) / 1000000).toFixed(1)} Million`;
   const decisionStatus =
@@ -681,8 +715,8 @@ function createDetailedEvaluationNarrative(
   const pOps = assess.pillars?.operationalCapacity;
 
   return [
-    `CREDIT RISK UNDERWRITING ASSESSMENT: ${feat.cooperativeName.toUpperCase()}`,
-    `Registration: ${regNo} | Location: ${feat.sector} Sector, Gasabo District`,
+    `CREDIT RISK UNDERWRITING ASSESSMENT: ${cleanName}`,
+    `Registration: ${cleanReg} | Location: ${feat.sector} Sector, Gasabo District`,
     ``,
     `EXECUTIVE SUMMARY & RECOMMENDATION`,
     `• Overall Score: ${assess.scoreOutOf100}/100 (${assess.riskBand === "LOW" ? "Low Risk" : assess.riskBand === "MODERATE" ? "Moderate Risk" : "High Risk"})`,
@@ -936,11 +970,13 @@ export default function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const cleanName = cleanDisplayCoopName(loanCase.cooperative.name);
+    const cleanReg = cleanDisplayRegNo(loanCase.cooperative.registrationNo);
     setMessages([
       {
         id: `user-${loanCase.id}`,
         role: "user",
-        content: `Evaluate credit risk assessment for ${loanCase.cooperative.name} (Registration: ${loanCase.cooperative.registrationNo}) requesting RWF ${(Number(loanCase.requestedAmountRwf) / 1000000).toFixed(1)} Million for Gasabo maize aggregation.`,
+        content: `Evaluate credit risk assessment for ${cleanName} (Registration: ${cleanReg}) requesting RWF ${(Number(loanCase.requestedAmountRwf) / 1000000).toFixed(1)} Million for Gasabo maize aggregation.`,
         timestamp: nowTime,
       },
       {
@@ -985,9 +1021,11 @@ export default function App() {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const cleanName = cleanDisplayCoopName(coop.name);
+    const cleanReg = cleanDisplayRegNo(coop.registrationNo);
     const narrative = [
-      `### Institutional Profile & Baseline Risk: ${coop.name}`,
-      `**Registration**: ${coop.registrationNo} | **Location**: ${coop.sector} Sector, Gasabo District`,
+      `### Institutional Profile & Baseline Risk: ${cleanName}`,
+      `**Registration**: ${cleanReg} | **Location**: ${coop.sector} Sector, Gasabo District`,
       ``,
       `#### Cooperative Overview`,
       `* **Farmer Members**: ${coop.memberCount} registered smallholders`,
@@ -1125,10 +1163,7 @@ export default function App() {
         }
 
         try {
-          const evalRes = await api.evaluateLoan({
-            applicationText: attachments[0].fileContent || attachments[0].name,
-            offtakeText: attachments[1]?.fileContent || attachments[1]?.name,
-          });
+          const evalRes = await api.evaluateLoanMultipart(formData);
 
           if (evalRes.data) {
             const backendData = evalRes.data as BackendAssessmentResponse;

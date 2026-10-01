@@ -166,7 +166,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-4 sm:px-0">
+    <div className="w-full max-w-3xl lg:max-w-4xl mx-auto px-4 sm:px-6">
       {/* Hidden File Input for Native File Upload */}
       <input
         ref={fileInputRef}
@@ -179,11 +179,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
       {/* Attached Files Pill Container */}
       {selectedAttachments.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2 items-center">
+        <div className="mb-2.5 flex flex-wrap gap-2 items-center">
           {selectedAttachments.map((doc) => (
             <div
               key={doc.name}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#2FA084]/40 rounded-xl text-xs text-stone-800 shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#2FA084]/60 rounded-xl text-xs font-semibold text-stone-900 shadow-2xs"
             >
               {doc.name.endsWith('.pdf') ? (
                 <FileText className="w-3.5 h-3.5 text-red-500" />
@@ -192,14 +192,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               ) : (
                 <FileUp className="w-3.5 h-3.5 text-[#1F6F5F]" />
               )}
-              <span className="font-medium truncate max-w-[200px]">{doc.name}</span>
-              <span className="text-stone-400 text-[10px]">({doc.size})</span>
+              <span className="font-bold text-stone-950 truncate max-w-[200px]">{doc.name}</span>
+              <span className="text-stone-600 font-medium text-[10px]">({doc.size})</span>
               <button
                 type="button"
                 onClick={() => removeAttachment(doc.name)}
-                className="text-stone-400 hover:text-stone-700 p-0.5 rounded-xs cursor-pointer ml-1"
+                className="text-stone-500 hover:text-stone-900 p-0.5 rounded-xs cursor-pointer ml-1"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
@@ -214,13 +214,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         className={`relative bg-white rounded-full sm:rounded-2xl border transition-all duration-200 ${
           isDragging
             ? 'border-[#2FA084] ring-4 ring-[#2FA084]/20 bg-[#6FCF97]/10'
-            : 'border-stone-200/90 shadow-sm hover:shadow-md focus-within:border-[#2FA084] focus-within:ring-2 focus-within:ring-[#2FA084]/20'
+            : 'border-stone-300 shadow-sm hover:shadow-md focus-within:border-[#2FA084] focus-within:ring-2 focus-within:ring-[#2FA084]/20'
         }`}
       >
         {isDragging && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/90 rounded-2xl pointer-events-none">
-            <div className="flex items-center gap-2 text-xs font-semibold text-[#1F6F5F]">
-              <Upload className="w-4 h-4 animate-bounce" />
+            <div className="flex items-center gap-2 text-xs font-bold text-[#134e4a]">
+              <Upload className="w-4 h-4 animate-bounce text-[#1F6F5F]" />
               <span>Drop application form or offtake contract here</span>
             </div>
           </div>
@@ -228,7 +228,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         <form
           onSubmit={handleSubmit}
-          className="flex items-center px-2.5 sm:px-3 py-2 gap-2"
+          className="flex items-center px-2.5 sm:px-3.5 py-2 gap-2"
         >
           {/* Attachment Button */}
           <div className="relative" ref={menuRef}>
@@ -236,19 +236,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               type="button"
               onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
               title="Attach loan application, contract, or ledger"
-              className="p-2 sm:p-2.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-full transition-colors flex items-center justify-center cursor-pointer"
+              className="p-2 sm:p-2.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-full transition-colors flex items-center justify-center cursor-pointer"
             >
-              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5 text-stone-500" />
+              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5 text-stone-700" />
             </button>
 
             {/* Attachment Popover Menu */}
             {showAttachmentMenu && (
-              <div className="absolute bottom-12 left-0 w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-3 z-30 space-y-2.5">
-                <div className="flex items-center justify-between pb-1.5 border-b border-stone-100">
-                  <span className="text-xs font-semibold text-stone-800">
+              <div className="absolute bottom-12 left-0 w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-3.5 z-30 space-y-2.5">
+                <div className="flex items-center justify-between pb-1.5 border-b border-stone-200">
+                  <span className="text-xs font-bold text-stone-950">
                     Upload Loan Evidence
                   </span>
-                  <span className="text-[10px] text-stone-400">PDF / XLSX / Docs</span>
+                  <span className="text-[10px] font-semibold text-stone-600">PDF / DOCX / XLSX</span>
                 </div>
 
                 {/* Direct Upload Button from Computer */}
@@ -258,20 +258,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     fileInputRef.current?.click();
                     setShowAttachmentMenu(false);
                   }}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#1F6F5F] hover:bg-[#18574a] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#1F6F5F] hover:bg-[#18574a] text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Browse Device Files (.pdf, .png, .txt)</span>
+                  <span>Browse Device Files (.docx, .pdf, .txt)</span>
                 </button>
 
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/60 text-center">
-                  <FileUp className="w-6 h-6 text-[#1F6F5F] mx-auto mb-1 opacity-80" />
-                  <p className="text-[11px] font-medium text-stone-700">Drag & drop documents here</p>
-                  <p className="text-[10px] text-stone-400 mt-0.5">Supports signed loan forms, offtake agreements & ledgers</p>
+                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-center">
+                  <FileUp className="w-6 h-6 text-[#1F6F5F] mx-auto mb-1 opacity-90" />
+                  <p className="text-[11px] font-bold text-stone-900">Drag & drop documents here</p>
+                  <p className="text-[10px] text-stone-600 mt-0.5">Supports signed loan forms, offtake agreements & ledgers</p>
                 </div>
 
-                <div className="pt-1 text-[11px] text-stone-400 flex items-center gap-1 border-t border-stone-100">
-                  <ShieldAlert className="w-3 h-3 text-[#2FA084]" />
+                <div className="pt-1 text-[11px] text-stone-600 font-medium flex items-center gap-1 border-t border-stone-200">
+                  <ShieldAlert className="w-3.5 h-3.5 text-[#2FA084]" />
                   <span>Files encrypted under BNR banking standards</span>
                 </div>
               </div>
@@ -287,7 +287,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onKeyDown={handleKeyDown}
             placeholder="Ask about credit risk or attach cooperative loan documents..."
             disabled={isLoading}
-            className="flex-1 bg-transparent border-0 resize-none py-1.5 sm:py-2 text-stone-800 placeholder-stone-400 text-xs sm:text-sm focus:outline-none focus:ring-0 max-h-24 overflow-y-auto"
+            className="flex-1 bg-transparent border-0 resize-none py-1.5 sm:py-2 text-stone-900 placeholder-stone-400 font-normal text-xs sm:text-sm focus:outline-none focus:ring-0 max-h-24 overflow-y-auto"
           />
 
           {/* Send Button */}
@@ -298,7 +298,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             }
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
               input.trim() || selectedAttachments.length > 0
-                ? 'bg-[#2FA084] hover:bg-[#25876f] text-white shadow-sm'
+                ? 'bg-[#1F6F5F] hover:bg-[#18574a] text-white shadow-sm'
                 : 'bg-stone-200 text-stone-400 cursor-not-allowed'
             }`}
             title="Send query"
@@ -313,7 +313,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       </div>
 
       {/* Subtle Bottom Note */}
-      <p className="mt-3 text-center text-[11px] text-stone-400 tracking-wide font-normal">
+      <p className="mt-2.5 text-center text-[11px] text-stone-500 font-medium tracking-wide">
         AgriCredit AI analyzes cooperative financial records, agronomic satellite indices, and historical repayment data.
       </p>
     </div>
