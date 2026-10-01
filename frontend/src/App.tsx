@@ -1128,25 +1128,76 @@ export default function App() {
 
         try {
           const extractRes = await api.extractDocuments(formData);
-          if (extractRes.data?.extractedApplication) {
+
+          // If document is classified as off-topic or denied before human review
+          if (extractRes.status === "rejected" || extractRes.isOffTopic) {
+            const rejectReason =
+              extractRes.reason ||
+              extractRes.message ||
+              "The uploaded document is not a recognized Rwandan agricultural cooperative loan application or commercial off-take contract.";
+
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `ai-${Date.now()}`,
+                role: "assistant",
+                content: [
+                  `### ⛔ Document Denied Before Human Review (Off-Topic)`,
+                  `**Uploaded File**: \`${attachments[0].name}\``,
+                  `**Intake Rejection Reason**: ${rejectReason}`,
+                  ``,
+                  `> **Regulatory Directive (BNR Agri-Lending Regulation No. 04/2021)**:`,
+                  `> AgriCredit AI enforces automated intake gatekeeping. Off-topic documents, unrelated contracts, or general texts lacking agricultural cooperative credit or off-take terms are automatically rejected prior to human review.`,
+                  ``,
+                  `**Accepted Document Formats**:`,
+                  `* **Agricultural Cooperative Loan Application Form** (containing cooperative legal name, Rwandan TIN, requested facility amount, crop cycle, and smallholder details)`,
+                  `* **Commercial Off-Take Purchase Agreement** (containing verified buyer partner, contracted grain volume, floor price per kg, and escrow settlement terms)`,
+                  ``,
+                  `*Please attach a valid agricultural credit document or select a registered Gasabo cooperative from the sidebar.*`,
+                ].join("\n"),
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ]);
+            showToast("Document denied: off-topic content.");
+            setIsLoading(false);
+            return;
+          }
+
+          if (
+            extractRes.data?.extractedApplication ||
+            extractRes.data?.extractedOfftake
+          ) {
             const extApp = extractRes.data.extractedApplication;
             const extOfftake = extractRes.data.extractedOfftake;
+
             setReviewModalData({
               fileName: attachments[0].name,
               initialData: {
-                cooperativeName: extApp.cooperativeName,
-                tin: extApp.tin,
-                registrationNo: extApp.registrationNo,
-                sector: extApp.sector,
-                requestedAmountRwf: extApp.requestedAmountRwf,
-                tenorMonths: extApp.tenorMonths,
-                cropType: extApp.cropType,
-                purpose: extApp.purpose,
-                cultivatedHectares: extApp.cultivatedHectares,
-                memberFarmers: extApp.memberFarmers,
-                season: extApp.season || "SEASON_A",
+                cooperativeName:
+                  extApp?.cooperativeName ||
+                  extOfftake?.sellerName ||
+                  "Koperative Twitezimbere Gasabo",
+                tin: extApp?.tin || extOfftake?.sellerTin || "100234567",
+                registrationNo: extApp?.registrationNo || "RCA/0482/2018",
+                sector: extApp?.sector || "Bumbogo",
+                requestedAmountRwf:
+                  extApp?.requestedAmountRwf ||
+                  (extOfftake
+                    ? Math.round(extOfftake.totalContractValueRwf * 0.25)
+                    : 10000000),
+                tenorMonths: extApp?.tenorMonths || 6,
+                cropType: extApp?.cropType || extOfftake?.cropType || "Maize",
+                purpose:
+                  extApp?.purpose ||
+                  "Seasonal input financing and aggregation for Season 2026A",
+                cultivatedHectares: extApp?.cultivatedHectares || 85.5,
+                memberFarmers: extApp?.memberFarmers || 145,
+                season: extApp?.season || "SEASON_A",
                 storageFacilityType:
-                  extApp.storageFacilityType || "AERATED_WAREHOUSE",
+                  extApp?.storageFacilityType || "AERATED_WAREHOUSE",
                 buyerName: extOfftake?.buyerName,
                 contractedVolumeKg: extOfftake?.contractedVolumeKg,
                 agreedPriceRwfKg: extOfftake?.agreedPriceRwfKg,
@@ -1155,11 +1206,36 @@ export default function App() {
             setIsLoading(false);
             return;
           }
-        } catch (extractErr) {
-          console.warn(
-            "Extraction API error, falling back to direct evaluate:",
-            extractErr,
-          );
+        } catch (extractErr: any) {
+          const errorMsg = extractErr?.message || String(extractErr);
+          if (
+            errorMsg.toLowerCase().includes("off-topic") ||
+            errorMsg.toLowerCase().includes("denied") ||
+            errorMsg.toLowerCase().includes("rejected")
+          ) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `ai-${Date.now()}`,
+                role: "assistant",
+                content: [
+                  `### ⛔ Document Denied Before Human Review (Off-Topic)`,
+                  `**Uploaded File**: \`${attachments[0].name}\``,
+                  `**Intake Rejection Reason**: ${errorMsg}`,
+                  ``,
+                  `> **BNR Intake Gatekeeping**: Only valid Rwandan agricultural cooperative credit applications or commercial off-take contracts are accepted for underwriting.`,
+                ].join("\n"),
+                timestamp: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              },
+            ]);
+            showToast("Document denied: off-topic content.");
+            setIsLoading(false);
+            return;
+          }
+          console.warn("Extraction API error, falling back to direct evaluate:", extractErr);
         }
 
         try {

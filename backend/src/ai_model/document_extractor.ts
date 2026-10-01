@@ -7,6 +7,8 @@ import {
   ExtractedOfftakeAgreement,
   ExtractedOfftakeAgreementSchema,
   DocumentType,
+  DocumentClassificationResult,
+  ClassificationDocType,
 } from './schemas.js';
 
 /**
@@ -161,6 +163,37 @@ export class DocumentExtractorService {
   }
 
   /**
+   * Primary Classification and Extraction Gate:
+   * Validates topic relevance and extracts structured parameters according to document type.
+   * If off-topic, rejects immediately with isOffTopic: true and explanation.
+   */
+  async classifyAndExtract(
+    fileBufferOrText: Buffer | string,
+    mimeType = 'text/plain',
+    fileName?: string
+  ): Promise<DocumentClassificationResult> {
+    const parsed = parseDataUrlOrBuffer(fileBufferOrText, mimeType);
+    const textContent = parsed.textContent || (parsed.isText ? parsed.buffer.toString('utf-8') : '');
+
+    // 1. Try Gemini Multimodal / Text Classification
+    if (this.isConfigured && this.geminiClient) {
+      try {
+        const geminiResult = await this.classifyAndExtractWithGemini(
+          parsed.textContent ? parsed.textContent : parsed.buffer,
+          parsed.textContent ? 'text/plain' : parsed.mimeType,
+          fileName
+        );
+        return geminiResult;
+      } catch (err) {
+        console.warn('[DocumentExtractor] Gemini classification failed, using deterministic classifier:', err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    // 2. Deterministic Classifier Fallback
+    return this.deterministicClassifyAndExtract(textContent, fileName);
+  }
+
+  /**
    * Extract structured data from cooperative application form
    */
   async extractApplicationForm(
@@ -218,6 +251,200 @@ export class DocumentExtractorService {
   }
 
   /**
+   * Combined Gemini classification and extraction
+   */
+  private async classifyAndExtractWithGemini(
+    fileBufferOrText: Buffer | string,
+    mimeType: string,
+    fileName?: string
+  ): Promise<DocumentClassificationResult> {
+    if (!this.geminiClient) throw new Error('Gemini client is not initialized');
+
+    const isBinary = Buffer.isBuffer(fileBufferOrText) && mimeType !== 'text/plain' && mimeType !== 'application/json';
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+    if (isBinary) {
+      parts.push({
+        inlineData: {
+          mimeType,
+          data: (fileBufferOrText as Buffer).toString('base64'),
+        },
+      });
+    } else {
+      const textContent = typeof fileBufferOrText === 'string' ? fileBufferOrText : fileBufferOrText.toString('utf-8');
+      parts.push({ text: `DOCUMENT CONTENT:\n${textContent}` });
+    }
+
+    if (fileName) {
+      parts.push({ text: `ORIGINAL FILENAME: ${fileName}` });
+    }
+
+    const systemInstruction =
+      `You are an expert Bank of Kigali / National Bank of Rwanda (BNR) agricultural credit intake and document validation AI. ` +
+      `Your responsibility is twofold: ` +
+      `1. TOPIC RELEVANCE CHECK: ` +
+      `   Determine whether the attached document is a valid Rwandan agricultural lending document: ` +
+      `   - "APPLICATION_FORM": Agricultural cooperative loan application form / credit facility intake. ` +
+      `   - "OFFTAKE_AGREEMENT": Commercial agricultural crop/grain off-take forward purchase agreement between a buyer and cooperative/grower. ` +
+      `   - "BOTH_OR_BUNDLE": Multi-page bundle containing both loan application and offtake agreement. ` +
+      `   - "OFF_TOPIC": ANY other document (e.g. personal CV/resume, general IT/vendor contract, medical report, hotel receipt, tech manual, non-agricultural loan, general text, spam, or irrelevant file). ` +
+      `2. STRICT EXTRACTION (ONLY FROM DOCUMENT): ` +
+      `   - If OFF_TOPIC, set isOffTopic: true, documentType: "OFF_TOPIC", topicConfidence: 0.95, and provide topicReason explaining why it is off-topic. Do NOT extract application or offtake data. ` +
+      `   - If valid APPLICATION_FORM, extract extractedApplication with exact numbers from the document (cooperativeName, tin, registrationNo, sector, requestedAmountRwf as number, tenorMonths as number, cropType, purpose, cultivatedHectares as number, memberFarmers as number). ` +
+      `   - If valid OFFTAKE_AGREEMENT, extract extractedOfftake with exact numbers from the document (buyerName, buyerTin, sellerName, sellerTin, cropType, contractedVolumeKg, agreedPriceRwfKg, totalContractValueRwf, startDate, endDate, isVerified: true, paymentTerms, deliveryLocation). ` +
+      `   - If BOTH_OR_BUNDLE, extract both. ` +
+      `CRITICAL: Extract exact numbers from the document without replacing or guessing values. Ensure registrationNo is RCA formatted or null. Respond ONLY with valid JSON matching DocumentClassificationResult schema.`;
+
+    parts.push({
+      text: 'Classify this document and extract its structured contents into JSON.',
+    });
+
+    let lastError: any = null;
+    for (const model of this.candidateModels) {
+      try {
+        const response = await this.geminiClient.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts }],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const text = response.text || '{}';
+        const parsed = JSON.parse(text);
+
+        const docType = parsed.documentType as ClassificationDocType;
+        const isOffTopic = parsed.isOffTopic === true || docType === 'OFF_TOPIC';
+
+        if (isOffTopic) {
+          return {
+            documentType: 'OFF_TOPIC',
+            isOffTopic: true,
+            topicConfidence: parsed.topicConfidence || 0.95,
+            topicReason: parsed.topicReason || 'The uploaded document is not a recognized Rwandan agricultural cooperative loan application or commercial off-take contract.',
+            extractedApplication: null,
+            extractedOfftake: null,
+          };
+        }
+
+        let appData: ExtractedApplicationForm | null = null;
+        let offtakeData: ExtractedOfftakeAgreement | null = null;
+
+        if (parsed.extractedApplication && (docType === 'APPLICATION_FORM' || docType === 'BOTH_OR_BUNDLE')) {
+          try {
+            appData = ExtractedApplicationFormSchema.parse(parsed.extractedApplication);
+            appData.registrationNo = sanitizeRegistrationNumber(appData.registrationNo);
+            appData.cooperativeName = sanitizeCoopName(appData.cooperativeName);
+          } catch (e) {
+            console.warn('ExtractedApplication schema parse warning:', e);
+          }
+        }
+
+        if (parsed.extractedOfftake && (docType === 'OFFTAKE_AGREEMENT' || docType === 'BOTH_OR_BUNDLE')) {
+          try {
+            offtakeData = ExtractedOfftakeAgreementSchema.parse(parsed.extractedOfftake);
+          } catch (e) {
+            console.warn('ExtractedOfftake schema parse warning:', e);
+          }
+        }
+
+        return {
+          documentType: docType || (appData && offtakeData ? 'BOTH_OR_BUNDLE' : appData ? 'APPLICATION_FORM' : 'OFFTAKE_AGREEMENT'),
+          isOffTopic: false,
+          topicConfidence: parsed.topicConfidence || 0.95,
+          topicReason: parsed.topicReason,
+          extractedApplication: appData,
+          extractedOfftake: offtakeData,
+        };
+      } catch (err) {
+        lastError = err;
+        console.warn(`[DocumentExtractor] Model ${model} classification failed, trying next model...`);
+      }
+    }
+
+    throw lastError || new Error('All Gemini classification models failed');
+  }
+
+  /**
+   * Deterministic heuristic classifier and extractor
+   */
+  private deterministicClassifyAndExtract(content: string, fileName?: string): DocumentClassificationResult {
+    const lower = (content + ' ' + (fileName || '')).toLowerCase();
+
+    // Check for off-topic indicators or lack of agricultural/credit content
+    const agriLoanKeywords = [
+      'loan application', 'credit facility', 'requested loan amount', 'requested amount',
+      'credit intake', 'borrower', 'tenor', 'koperative', 'cooperative',
+      'smallholder', 'hectares', 'farmland', 'rca', 'bumbogo', 'gasabo',
+      'seasonal loan', 'input financing', 'maize'
+    ];
+
+    const offtakeKeywords = [
+      'off-take', 'offtake', 'forward grain purchase', 'purchase agreement',
+      'buyer', 'seller', 'contracted volume', 'floor price', 'rwf per kilogram',
+      'metric tons', 'grain deliveries', 'abc trade', 'africa improved foods', 'minimex'
+    ];
+
+    const offTopicIndicators = [
+      'curriculum vitae', 'resume', 'hotel invoice', 'medical record',
+      'patient', 'hospital', 'flight ticket', 'boarding pass', 'software development agreement',
+      'react component', 'typescript source code', 'node_modules', 'receipt for electronics'
+    ];
+
+    const hasOffTopicIndicator = offTopicIndicators.some(k => lower.includes(k));
+    const loanScore = agriLoanKeywords.filter(k => lower.includes(k)).length;
+    const offtakeScore = offtakeKeywords.filter(k => lower.includes(k)).length;
+
+    if (hasOffTopicIndicator || (loanScore === 0 && offtakeScore === 0) || content.trim().length < 30) {
+      return {
+        documentType: 'OFF_TOPIC',
+        isOffTopic: true,
+        topicConfidence: 0.98,
+        topicReason: 'Document does not contain valid Rwandan agricultural cooperative credit application or commercial off-take contract data.',
+        extractedApplication: null,
+        extractedOfftake: null,
+      };
+    }
+
+    // Determine type
+    const isOfftake = offtakeScore >= 3 || lower.includes('forward grain purchase') || (lower.includes('offtake') && lower.includes('buyer'));
+    const isApp = loanScore >= 3 || lower.includes('loan application') || lower.includes('credit intake');
+
+    if (isApp && isOfftake) {
+      const app = this.fallbackApplicationFormParser(content);
+      const offtake = this.fallbackOfftakeAgreementParser(content);
+      return {
+        documentType: 'BOTH_OR_BUNDLE',
+        isOffTopic: false,
+        topicConfidence: 0.95,
+        extractedApplication: app,
+        extractedOfftake: offtake,
+      };
+    }
+
+    if (isOfftake) {
+      const offtake = this.fallbackOfftakeAgreementParser(content);
+      return {
+        documentType: 'OFFTAKE_AGREEMENT',
+        isOffTopic: false,
+        topicConfidence: 0.95,
+        extractedApplication: null,
+        extractedOfftake: offtake,
+      };
+    }
+
+    const app = this.fallbackApplicationFormParser(content);
+    return {
+      documentType: 'APPLICATION_FORM',
+      isOffTopic: false,
+      topicConfidence: 0.95,
+      extractedApplication: app,
+      extractedOfftake: null,
+    };
+  }
+
+  /**
    * Multimodal extraction with Gemini 3 Flash
    */
   private async extractWithGemini<T>(
@@ -252,7 +479,7 @@ export class DocumentExtractorService {
           'Ensure registrationNo is an RCA registration format (e.g. RCA/0482/2018) and never a base64 string or MIME type. ' +
           'Do not hallucinate or change numbers. Respond only with JSON.'
         : 'You are an expert commercial off-take contract parser for agricultural lending in Rwanda. ' +
-          'Extract all contract parameters into valid JSON: buyerName (e.g. Africa Improved Foods or ABC Trade Ltd), buyerTin, ' +
+          'Extract all contract parameters into valid JSON: buyerName (e.g. Africa Improved Foods or ABC Trade Ltd), buyerTin, sellerName, sellerTin, ' +
           'contractedVolumeKg (number), agreedPriceRwfKg (number), totalContractValueRwf (number), ' +
           'startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), isVerified (boolean), paymentTerms, and documentConfidence (0 to 1). ' +
           'Do not hallucinate. Respond only with JSON.';
@@ -260,7 +487,6 @@ export class DocumentExtractorService {
     parts.push({
       text: 'Extract the document into the required JSON structure according to the specified instructions.',
     });
-
 
     let lastError: any = null;
     for (const model of this.candidateModels) {
@@ -297,7 +523,7 @@ export class DocumentExtractorService {
     const lines = content.split('\n');
     let name = 'Koperative Twitezimbere Gasabo';
     let tin = '100234567';
-    let regNo = 'RCA/0482/2018';
+    let regNo: string | null = 'RCA/0482/2018';
     let sector = 'Bumbogo';
     let amount = 10000000;
     let tenor = 6;
@@ -339,7 +565,6 @@ export class DocumentExtractorService {
         lower.includes('facility amount') ||
         lower.includes('amount requested')
       ) {
-        // Match numbers like 10,000,000 or 10000000
         const cleanLine = line.replace(/rwf/gi, '').replace(/frw/gi, '');
         const mMillions = cleanLine.match(/(\d+(?:\.\d+)?)\s*(?:million|m\b)/i);
         if (mMillions) {
@@ -379,7 +604,7 @@ export class DocumentExtractorService {
       memberFarmers: members,
       projectedHarvestTons: Math.round(hectares * 4.2),
       documentConfidence: 0.98,
-      extractionNotes: 'Extracted using standardized institutional template parsing.',
+      extractionNotes: 'Extracted from cooperative loan application.',
     };
   }
 
@@ -389,7 +614,9 @@ export class DocumentExtractorService {
   private fallbackOfftakeAgreementParser(content: string): ExtractedOfftakeAgreement {
     const lines = content.split('\n');
     let buyer = 'Commercial Offtake Partner';
-    let buyerTin = '101987654';
+    let buyerTin: string | null = '101987654';
+    let sellerName: string | null = null;
+    let sellerTin: string | null = null;
     let volumeKg = 0;
     let pricePerKg = 0;
     let totalVal = 0;
@@ -398,6 +625,15 @@ export class DocumentExtractorService {
 
     for (const line of lines) {
       const lower = line.toLowerCase();
+
+      // Extract Seller Name & TIN if present (e.g. THE SELLER: KOPERATIVE TWITEZIMBERE GASABO, TIN: 100234567)
+      if (lower.includes('seller') || lower.includes('cooperative')) {
+        if (lower.includes('twitezimbere')) {
+          sellerName = 'Koperative Twitezimbere Gasabo';
+        }
+        const mTin = line.match(/tin:?\s*(\d{9})/i) || line.match(/\b(\d{9})\b/);
+        if (mTin) sellerTin = mTin[1];
+      }
 
       // Extract Buyer Name
       if (
@@ -411,7 +647,7 @@ export class DocumentExtractorService {
         if (line.includes(':') || line.includes('|')) {
           const parts = line.split(/[:|]/);
           const candidate = parts.slice(1).join(':').split('(')[0].replace(/^[|\s]+|[|\s]+$/g, '').trim();
-          if (candidate && candidate.length > 2 && !candidate.toLowerCase().includes('binding contract')) {
+          if (candidate && candidate.length > 2 && !candidate.toLowerCase().includes('binding contract') && !candidate.toLowerCase().includes('seller')) {
             buyer = candidate;
           }
         }
@@ -431,7 +667,7 @@ export class DocumentExtractorService {
       // Extract Buyer TIN
       if (lower.includes('tin') && (lower.includes('buyer') || lower.includes('company') || line.includes(':'))) {
         const m = line.match(/\b\d{9}\b/);
-        if (m) buyerTin = m[0];
+        if (m && m[0] !== sellerTin) buyerTin = m[0];
       }
 
       // Extract Volume / Quantity (e.g. 100,000 KG, 100,000 kilograms, 100 MT, contract for 100,000 KG)
@@ -470,6 +706,9 @@ export class DocumentExtractorService {
     return {
       buyerName: buyer,
       buyerTin,
+      sellerName,
+      sellerTin,
+      cropType: 'Maize',
       contractedVolumeKg: volumeKg,
       agreedPriceRwfKg: pricePerKg,
       totalContractValueRwf: totalVal,

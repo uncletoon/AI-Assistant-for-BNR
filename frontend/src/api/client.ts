@@ -94,6 +94,19 @@ export interface FairnessSummaryRow {
   approval_rate: string;
 }
 
+export interface DocumentExtractionResponse {
+  status: 'success' | 'rejected' | 'error';
+  isOffTopic?: boolean;
+  message?: string;
+  reason?: string;
+  detectedDocType?: string;
+  data?: {
+    extractedApplication: any;
+    extractedOfftake?: any;
+    detectedDocType?: string;
+  };
+}
+
 const BASE_URL = '/api/v1';
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -111,8 +124,14 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
+    if (response.status === 422 && errorBody.status === 'rejected') {
+      return errorBody as T;
+    }
     const message = errorBody.message || `Request failed with status ${response.status}`;
-    throw new Error(message);
+    const error: any = new Error(message);
+    error.response = errorBody;
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -188,14 +207,8 @@ export const api = {
     });
   },
 
-  async extractDocuments(formData: FormData): Promise<{
-    status: string;
-    data: {
-      extractedApplication: any;
-      extractedOfftake?: any;
-    };
-  }> {
-    return fetchJson('/scoring/extract', {
+  async extractDocuments(formData: FormData): Promise<DocumentExtractionResponse> {
+    return fetchJson<DocumentExtractionResponse>('/scoring/extract', {
       method: 'POST',
       body: formData,
     });

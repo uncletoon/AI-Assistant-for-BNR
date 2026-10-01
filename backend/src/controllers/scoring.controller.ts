@@ -508,15 +508,20 @@ export async function extractLoanDocuments(req: Request, res: Response, next: Ne
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[] | undefined;
     let appBuffer: Buffer | string = req.body.applicationText || '';
     let appMime = 'text/plain';
+    let appFileName = 'loan_application.txt';
+
     let offtakeBuffer: Buffer | string = req.body.offtakeText || '';
     let offtakeMime = 'text/plain';
+    let offtakeFileName = 'commercial_offtake_agreement.txt';
 
     if (Array.isArray(files) && files.length > 0) {
       appBuffer = files[0].buffer;
       appMime = files[0].mimetype;
+      appFileName = files[0].originalname;
       if (files.length > 1) {
         offtakeBuffer = files[1].buffer;
         offtakeMime = files[1].mimetype;
+        offtakeFileName = files[1].originalname;
       }
     } else if (files && typeof files === 'object') {
       const filesMap = files as Record<string, Express.Multer.File[]>;
@@ -524,15 +529,18 @@ export async function extractLoanDocuments(req: Request, res: Response, next: Ne
       if (appFile) {
         appBuffer = appFile.buffer;
         appMime = appFile.mimetype;
+        appFileName = appFile.originalname;
       }
       const offtakeFile = filesMap['offtake']?.[0] || filesMap['offtakeFile']?.[0];
       if (offtakeFile) {
         offtakeBuffer = offtakeFile.buffer;
         offtakeMime = offtakeFile.mimetype;
+        offtakeFileName = offtakeFile.originalname;
       }
     } else if (req.file) {
       appBuffer = req.file.buffer;
       appMime = req.file.mimetype;
+      appFileName = req.file.originalname;
     }
 
     if (typeof appBuffer === 'string' && appBuffer.startsWith('data:')) {
@@ -554,29 +562,46 @@ export async function extractLoanDocuments(req: Request, res: Response, next: Ne
 
     let extractedApplication = null;
     let extractedOfftake = null;
+    let detectedDocType = 'APPLICATION_FORM';
 
     if (appBuffer) {
-      extractedApplication = await documentExtractor.extractApplicationForm(appBuffer, appMime);
+      const classification = await documentExtractor.classifyAndExtract(appBuffer, appMime, appFileName);
+
+      if (classification.isOffTopic) {
+        res.status(422).json({
+          status: 'rejected',
+          isOffTopic: true,
+          message: classification.topicReason || 'Document denied: Off-topic content detected prior to credit review.',
+          reason: classification.topicReason || `The uploaded file "${appFileName}" is not a recognized Rwandan agricultural cooperative loan application or commercial off-take contract.`,
+          detectedDocType: 'OFF_TOPIC',
+        });
+        return;
+      }
+
+      detectedDocType = classification.documentType;
+      extractedApplication = classification.extractedApplication || null;
+      extractedOfftake = classification.extractedOfftake || null;
     }
+
     if (offtakeBuffer) {
-      extractedOfftake = await documentExtractor.extractOfftakeAgreement(offtakeBuffer, offtakeMime);
-    } else if (appBuffer) {
-      const appStr = typeof appBuffer === 'string' ? appBuffer : appBuffer.toString('utf-8');
-      const lower = appStr.toLowerCase();
-      if (
-        lower.includes('off-take') ||
-        lower.includes('offtake') ||
-        lower.includes('buyer') ||
-        lower.includes('purchaser') ||
-        lower.includes('abc trade') ||
-        lower.includes('contract for') ||
-        lower.includes('binding contract')
-      ) {
-        try {
-          extractedOfftake = await documentExtractor.extractOfftakeAgreement(appBuffer, appMime);
-        } catch {
-          // Non-critical fallback
-        }
+      const offtakeClassification = await documentExtractor.classifyAndExtract(offtakeBuffer, offtakeMime, offtakeFileName);
+
+      if (offtakeClassification.isOffTopic) {
+        res.status(422).json({
+          status: 'rejected',
+          isOffTopic: true,
+          message: offtakeClassification.topicReason || 'Off-take document denied: Off-topic content detected.',
+          reason: offtakeClassification.topicReason || `The attached document "${offtakeFileName}" is not a valid commercial off-take agreement.`,
+          detectedDocType: 'OFF_TOPIC',
+        });
+        return;
+      }
+
+      if (offtakeClassification.extractedOfftake) {
+        extractedOfftake = offtakeClassification.extractedOfftake;
+      }
+      if (!extractedApplication && offtakeClassification.extractedApplication) {
+        extractedApplication = offtakeClassification.extractedApplication;
       }
     }
 
@@ -585,6 +610,7 @@ export async function extractLoanDocuments(req: Request, res: Response, next: Ne
       data: {
         extractedApplication,
         extractedOfftake,
+        detectedDocType,
       },
     });
   } catch (err) {
