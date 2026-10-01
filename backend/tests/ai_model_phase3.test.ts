@@ -131,4 +131,59 @@ describe('Phase 3: Scoring & Decision REST API Endpoints', () => {
     expect(failedRes.status).toBe(400);
     expect(failedRes.body.message).toContain('reason is strictly required for decision overrides');
   });
+
+  it('POST /api/v1/scoring/extract extracts structured fields from uploaded document file', async () => {
+    const rawForm = `
+      COOPERATIVE CREDIT APPLICATION
+      Cooperative Name: Koperative Twitezimbere Gasabo
+      TIN: 100234567
+      Sector: Bumbogo
+      Requested Loan Amount: 30,000,000 RWF
+      Tenor: 6 months
+      Farmland: 85.5 hectares
+      Members: 145 farmers
+    `;
+
+    const res = await request(app)
+      .post('/api/v1/scoring/extract')
+      .attach('application', Buffer.from(rawForm), 'application_form.txt');
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('success');
+    expect(res.body.data.extractedApplication).toBeDefined();
+    expect(res.body.data.extractedApplication.tin).toBe('100234567');
+    expect(res.body.data.extractedApplication.requestedAmountRwf).toBe(30000000);
+  });
+
+  it('POST /api/v1/scoring/cases/:id/simulate runs counterfactual What-If scenario analysis', async () => {
+    const coop = await prisma.cooperative.findFirst();
+    const officer = await prisma.user.findFirst();
+    if (!coop || !officer) return;
+
+    const testCase = await prisma.loanCase.create({
+      data: {
+        cooperative: { connect: { id: coop.id } },
+        createdBy: { connect: { id: officer.id } },
+        requestedAmountRwf: 25000000n,
+        tenorMonths: 6,
+        purpose: 'Seasonal maize test aggregation',
+        status: 'SCORED',
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/scoring/cases/${testCase.id}/simulate`)
+      .send({
+        requestedAmountRwf: '50000000', // Double requested facility
+        contractedVolumeKg: 350000,
+        agreedPriceRwfKg: 450,
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('success');
+    expect(res.body.data.isWhatIf).toBe(true);
+    expect(res.body.data.baseline.scoreOutOf100).toBeDefined();
+    expect(res.body.data.simulated.scoreOutOf100).toBeDefined();
+    expect(res.body.data.delta.scorePoints).toBeDefined();
+  });
 });

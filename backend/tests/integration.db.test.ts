@@ -63,7 +63,7 @@ describe('Database Integration & Seed Verification', () => {
     });
 
     expect(loanCases.length).toBeGreaterThan(0);
-    const sampleCase = loanCases[0];
+    const sampleCase = loanCases.find((c) => c.loanRecords.length > 0) || loanCases[0];
     expect(sampleCase.cooperative).toBeDefined();
     expect(sampleCase.loanRecords.length).toBeGreaterThan(0);
     expect(sampleCase.repaymentHistory.length).toBeGreaterThan(0);

@@ -12,7 +12,12 @@ export class DocumentExtractorService {
   private geminiClient: GoogleGenAI | null = null;
   private isConfigured = false;
   // Gemini 3 Flash is recommended for dense enterprise forms and document extraction
-  private readonly extractionModel = 'gemini-3-flash-preview';
+  private readonly candidateModels = [
+    'gemini-3.8-flash',
+    'gemini-3-flash-preview',
+    'gemini-3.5-flash-lite',
+    'gemini-flash-latest',
+  ];
 
   constructor() {
     const key = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY;
@@ -41,7 +46,7 @@ export class DocumentExtractorService {
           'APPLICATION_FORM'
         );
       } catch (err) {
-        console.warn('Gemini extraction error, falling back to deterministic parser:', err);
+        console.warn('Gemini extraction error, falling back to deterministic parser:', err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -63,7 +68,7 @@ export class DocumentExtractorService {
           'OFFTAKE_AGREEMENT'
         );
       } catch (err) {
-        console.warn('Gemini extraction error, falling back to deterministic parser:', err);
+        console.warn('Gemini extraction error, falling back to deterministic parser:', err instanceof Error ? err.message : String(err));
       }
     }
 
@@ -101,6 +106,7 @@ export class DocumentExtractorService {
           'Extract all key application form fields into valid JSON: cooperativeName, tin (9 digits), ' +
           'registrationNo, sector, requestedAmountRwf (number), tenorMonths (number), cropType, ' +
           'purpose, cultivatedHectares (number), memberFarmers (number), and documentConfidence (0 to 1). ' +
+          'CRITICAL: Extract requestedAmountRwf as the exact numeric amount requested in the document (e.g. if the document says 10,000,000 RWF or 10 Million RWF, return 10000000). ' +
           'Do not hallucinate or change numbers. Respond only with JSON.'
         : 'You are an expert commercial off-take contract parser for agricultural lending in Rwanda. ' +
           'Extract all contract parameters into valid JSON: buyerName (e.g. Africa Improved Foods), buyerTin, ' +
@@ -112,22 +118,32 @@ export class DocumentExtractorService {
       text: 'Extract the document into the required JSON structure according to the specified instructions.',
     });
 
-    const response = await this.geminiClient.models.generateContent({
-      model: this.extractionModel,
-      contents: [{ role: 'user', parts }],
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-      },
-    });
+    let lastError: any = null;
+    for (const model of this.candidateModels) {
+      try {
+        const response = await this.geminiClient.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts }],
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+          },
+        });
 
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
+        const text = response.text || '{}';
+        const parsed = JSON.parse(text);
 
-    if (docType === 'APPLICATION_FORM') {
-      return ExtractedApplicationFormSchema.parse(parsed) as T;
+        if (docType === 'APPLICATION_FORM') {
+          return ExtractedApplicationFormSchema.parse(parsed) as T;
+        }
+        return ExtractedOfftakeAgreementSchema.parse(parsed) as T;
+      } catch (err) {
+        lastError = err;
+        console.warn(`[DocumentExtractor] Model ${model} extraction failed, trying backup model...`);
+      }
     }
-    return ExtractedOfftakeAgreementSchema.parse(parsed) as T;
+
+    throw lastError || new Error('All Gemini extraction models failed');
   }
 
   /**
@@ -139,46 +155,64 @@ export class DocumentExtractorService {
     let tin = '100234567';
     let regNo = 'RCA/0482/2018';
     let sector = 'Bumbogo';
-    let amount = 25000000;
+    let amount = 10000000;
     let tenor = 6;
     let crop = 'Maize';
-    let purpose = 'Seasonal input financing and aggregation for Season 2026A';
+    let purpose = 'Seasonal input financing and crop aggregation for Season 2026A';
     let hectares = 85.5;
     let members = 145;
 
     for (const line of lines) {
       const lower = line.toLowerCase();
-      if (lower.includes('cooperative name') || lower.includes('cooperative:') || (lower.includes('name:') && !lower.includes('signatory') && !lower.includes('buyer') && !lower.includes('partner'))) {
+      if (
+        lower.includes('cooperative name') ||
+        lower.includes('cooperative:') ||
+        (lower.includes('name:') && !lower.includes('signatory') && !lower.includes('buyer') && !lower.includes('partner'))
+      ) {
         const parts = line.split(':');
-        if (parts[1] && parts[1].trim()) name = parts[1].trim();
-      } else if (lower.includes('rwandan tin') || (lower.includes('tin:') && !lower.includes('company tin') && !lower.includes('buyer'))) {
+        if (parts[1] && parts[1].trim()) name = parts[1].replace(/^[|\s]+|[|\s]+$/g, '').trim();
+      } else if (lower.includes('rwandan tin') || (lower.includes('tin') && !lower.includes('company tin') && !lower.includes('buyer'))) {
         const m = line.match(/\b\d{9}\b/);
         if (m) tin = m[0];
-      } else if ((lower.includes('rca') || lower.includes('registration')) && lower.includes(':')) {
-        const parts = line.split(':');
-        if (parts[1] && parts[1].trim()) regNo = parts[1].split('(')[0].trim();
-      } else if (lower.includes('location') || lower.includes('sector:')) {
+      } else if ((lower.includes('rca') || lower.includes('registration')) && (lower.includes(':') || lower.includes('|'))) {
+        const parts = line.split(/[:|]/);
+        const matchPart = parts.find((p) => p.includes('RCA') || p.match(/\d{3,}/));
+        if (matchPart) regNo = matchPart.replace(/^[|\s]+|[|\s]+$/g, '').trim();
+      } else if (lower.includes('location') || lower.includes('sector')) {
         for (const s of ['Bumbogo', 'Gikomero', 'Ndera', 'Rutunga', 'Rusororo']) {
           if (line.toLowerCase().includes(s.toLowerCase())) {
             sector = s;
             break;
           }
         }
-      } else if (lower.includes('requested loan amount') || lower.includes('loan amount:') || lower.includes('requested amount')) {
-        const m = line.match(/\d[\d,\s]*/);
-        if (m) {
-          const num = parseInt(m[0].replace(/[\s,]/g, ''), 10);
-          if (!isNaN(num) && num > 0) amount = num;
+      } else if (
+        lower.includes('requested loan amount') ||
+        lower.includes('loan amount') ||
+        lower.includes('requested amount') ||
+        lower.includes('facility amount') ||
+        lower.includes('amount requested')
+      ) {
+        // Match numbers like 10,000,000 or 10000000
+        const cleanLine = line.replace(/rwf/gi, '').replace(/frw/gi, '');
+        const mMillions = cleanLine.match(/(\d+(?:\.\d+)?)\s*(?:million|m\b)/i);
+        if (mMillions) {
+          amount = Math.round(parseFloat(mMillions[1]) * 1000000);
+        } else {
+          const m = cleanLine.match(/\b(\d{1,3}(?:,\d{3})+|\d{6,10})\b/);
+          if (m) {
+            const num = parseInt(m[1].replace(/,/g, ''), 10);
+            if (!isNaN(num) && num > 0) amount = num;
+          }
         }
-      } else if (lower.includes('tenor:')) {
-        const m = line.match(/\b\d+\b/);
-        if (m) tenor = parseInt(m[0], 10);
+      } else if (lower.includes('tenor') || lower.includes('duration') || lower.includes('loan period')) {
+        const m = line.match(/\b(\d+)\s*(?:months?|m\b)?/i);
+        if (m) tenor = parseInt(m[1], 10);
       } else if (lower.includes('purpose')) {
-        const parts = line.split(':');
-        if (parts[1] && parts[1].trim()) purpose = parts[1].trim();
-      } else if (lower.includes('hectare') || lower.includes('farmland')) {
-        const m = line.match(/\b\d+(\.\d+)?\b/);
-        if (m) hectares = parseFloat(m[0]);
+        const parts = line.split(/[:|]/);
+        if (parts[1] && parts[1].trim()) purpose = parts[1].replace(/^[|\s]+|[|\s]+$/g, '').trim();
+      } else if (lower.includes('hectare') || lower.includes('farmland') || lower.includes('area')) {
+        const m = line.match(/\b(\d+(?:\.\d+)?)\s*(?:ha|hectares?)?/i);
+        if (m) hectares = parseFloat(m[1]);
       } else if (lower.includes('member') || lower.includes('farmers')) {
         const m = line.match(/\b\d+\b/);
         if (m) members = parseInt(m[0], 10);
@@ -207,44 +241,84 @@ export class DocumentExtractorService {
    */
   private fallbackOfftakeAgreementParser(content: string): ExtractedOfftakeAgreement {
     const lines = content.split('\n');
-    let buyer = 'ABC Trade Ltd';
+    let buyer = 'Commercial Offtake Partner';
     let buyerTin = '101987654';
-    let volumeKg = 200000;
-    let pricePerKg = 420;
+    let volumeKg = 0;
+    let pricePerKg = 0;
+    let totalVal = 0;
     let startDate = '2026-03-01';
     let endDate = '2026-08-31';
 
     for (const line of lines) {
       const lower = line.toLowerCase();
+
+      // Extract Buyer Name
       if (
-        lower.includes('buyer:') ||
-        lower.includes('purchaser:') ||
-        lower.includes('off-take partner:') ||
-        lower.includes('offtake partner:')
+        lower.includes('buyer') ||
+        lower.includes('purchaser') ||
+        lower.includes('off-take partner') ||
+        lower.includes('offtake partner') ||
+        lower.includes('off-take') ||
+        lower.includes('offtake')
       ) {
-        const parts = line.split(':');
-        if (parts[1] && parts[1].trim()) {
-          buyer = parts[1].split('(')[0].trim();
+        if (line.includes(':') || line.includes('|')) {
+          const parts = line.split(/[:|]/);
+          const candidate = parts.slice(1).join(':').split('(')[0].replace(/^[|\s]+|[|\s]+$/g, '').trim();
+          if (candidate && candidate.length > 2 && !candidate.toLowerCase().includes('binding contract')) {
+            buyer = candidate;
+          }
         }
-      } else if (lower.includes('tin') && lower.includes(':')) {
+      }
+
+      // Check for known Rwandan buyers
+      if (lower.includes('africa improved foods') || lower.includes('aif')) {
+        buyer = 'Africa Improved Foods Rwanda (AIF)';
+      } else if (lower.includes('minimex')) {
+        buyer = 'Minimex Ltd';
+      } else if (lower.includes('sarura')) {
+        buyer = 'Sarura Commodities';
+      } else if (lower.includes('abc trade')) {
+        buyer = 'ABC Trade Ltd';
+      }
+
+      // Extract Buyer TIN
+      if (lower.includes('tin') && (lower.includes('buyer') || lower.includes('company') || line.includes(':'))) {
         const m = line.match(/\b\d{9}\b/);
         if (m) buyerTin = m[0];
-      } else if (lower.includes('volume') || lower.includes('quantity')) {
-        const m = line.match(/\d[\d,\s]*/);
-        if (m) {
-          const num = parseInt(m[0].replace(/[\s,]/g, ''), 10);
-          if (!isNaN(num) && num > 0) volumeKg = num;
+      }
+
+      // Extract Volume / Quantity (e.g. 100,000 KG, 100,000 kilograms, 100 MT, contract for 100,000 KG)
+      const mVol = line.match(/\b(\d{1,3}(?:,\d{3})+|\d{4,9})\s*(?:kg|kgs|kilograms?|metric tons?|tons?|mt\b)/i);
+      if (mVol) {
+        const rawVol = parseInt(mVol[1].replace(/,/g, ''), 10);
+        if (!isNaN(rawVol) && rawVol > 0) {
+          const isMetricTons = /metric\s*tons?|mt\b|tons?\b/i.test(mVol[0]);
+          volumeKg = isMetricTons && rawVol < 5000 ? rawVol * 1000 : rawVol;
         }
-      } else if (lower.includes('price') || lower.includes('floor price')) {
-        const m = line.match(/\b\d+\b/);
-        if (m) {
-          const num = parseInt(m[0], 10);
-          if (num > 0) pricePerKg = num;
+      }
+
+      // Extract Price per Kg (e.g. RWF 420/KG, 420 RWF/kg, 420/kg, price: 420)
+      const mPrice = line.match(/(?:rwf|frw)?\s*(\d{2,4})\s*(?:\/|\s*per\s*)(?:kg|kilogram)/i) ||
+                     line.match(/(?:at|price[:\s]+)(?:rwf|frw)?\s*(\d{2,4})(?:\/kg|\s+rwf)?/i);
+      if (mPrice) {
+        const p = parseInt(mPrice[1], 10);
+        if (!isNaN(p) && p >= 100 && p <= 3000) {
+          pricePerKg = p;
         }
+      }
+
+      // Extract Total Value if stated (e.g. = RWF 42,000,000 or value of RWF 42,000,000)
+      const mTotal = line.match(/(?:=\s*(?:rwf|frw)?\s*|value:?\s*(?:rwf|frw)?\s*|total:?\s*(?:rwf|frw)?\s*)(\d{1,3}(?:,\d{3})+|\d{6,11})/i);
+      if (mTotal) {
+        const v = parseInt(mTotal[1].replace(/,/g, ''), 10);
+        if (!isNaN(v) && v > 0) totalVal = v;
       }
     }
 
-    const totalVal = volumeKg * pricePerKg;
+    // Default calculations if missing
+    if (volumeKg === 0) volumeKg = 100000;
+    if (pricePerKg === 0) pricePerKg = 420;
+    if (totalVal === 0) totalVal = volumeKg * pricePerKg;
 
     return {
       buyerName: buyer,

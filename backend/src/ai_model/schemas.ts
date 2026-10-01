@@ -24,6 +24,8 @@ export const ExtractedApplicationFormSchema = z.object({
   cultivatedHectares: z.number().positive().optional(),
   memberFarmers: z.number().int().positive().optional(),
   projectedHarvestTons: z.number().positive().optional(),
+  season: z.enum(['SEASON_A', 'SEASON_B']).default('SEASON_A').optional(),
+  storageFacilityType: z.enum(['AERATED_WAREHOUSE', 'TRADITIONAL_SHED', 'STANDARD_STORAGE']).default('AERATED_WAREHOUSE').optional(),
   documentConfidence: z.number().min(0).max(1).default(0.95),
   extractionNotes: z.string().optional(),
 });
@@ -102,6 +104,9 @@ export interface AggregatedCreditFeatures {
   totalHectares: number;
   memberCount: number;
   storageCapacityT: number;
+  storageFacilityType?: 'AERATED_WAREHOUSE' | 'TRADITIONAL_SHED' | 'STANDARD_STORAGE';
+  agriculturalSeason?: 'SEASON_A' | 'SEASON_B';
+  postHarvestLossRiskPct?: number;
   recordQuality: number;
   hasDigitalHistory: boolean;
   womenLed: boolean;

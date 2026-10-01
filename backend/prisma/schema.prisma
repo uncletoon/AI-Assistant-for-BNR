@@ -372,8 +372,8 @@ model Decision {
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
-  loanCase  LoanCase @relation(fields: [loanCaseId], references: [id], onDelete: Restrict)
-  score     Score    @relation(fields: [scoreId], references: [id], onDelete: Restrict)
+  loanCase  LoanCase @relation(fields: [loanCaseId], references: [id], onDelete: Cascade)
+  score     Score    @relation(fields: [scoreId], references: [id], onDelete: Cascade)
   decidedBy User     @relation(fields: [decidedById], references: [id], onDelete: Restrict)
 
   @@index([scoreId])

@@ -15,34 +15,18 @@ export const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
     icon: 'cooperative',
     defaultQuery: 'What are their names and TIN numbers?',
   },
-];
-
-/**
- * Standard document templates corresponding to the four PRD document categories:
- * 1. Loan Records
- * 2. Repayment History
- * 3. Cooperative Profile
- * 4. Off-Take Agreements
- */
-export const SAMPLE_DOCUMENTS = [
   {
-    name: 'Gasabo_Cooperative_Loan_Records.csv',
-    size: '1.2 MB',
-    type: 'Historical Loan Records',
+    id: 'query-cashflow',
+    title: 'Cooperative Cash Flows',
+    description: 'Query money in / out transactions for Twitezimbere Gasabo',
+    icon: 'chart',
+    defaultQuery: 'Show cash flow and grain sale transactions for Twitezimbere Gasabo',
   },
   {
-    name: 'Repayment_Ledger_2023_2025.csv',
-    size: '860 KB',
-    type: 'Repayment Ledger',
-  },
-  {
-    name: 'Cooperative_Profile_RCA_Certified.pdf',
-    size: '2.4 MB',
-    type: 'Cooperative Profile',
-  },
-  {
-    name: 'Commercial_Offtake_Agreement_AIF.pdf',
-    size: '1.8 MB',
-    type: 'Off-Take Contract',
+    id: 'query-loans',
+    title: 'Historical Loan Records',
+    description: 'Query borrowing and repayment history across SACCOs',
+    icon: 'cooperative',
+    defaultQuery: 'Show historical loans and repayment performance for Twitezimbere Gasabo',
   },
 ];

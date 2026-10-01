@@ -45,38 +45,41 @@ function renderFormattedContent(text: string) {
   if (!text) return null;
   const lines = text.split("\n");
   return lines.map((line, idx) => {
-    const trimmed = line.trim();
+    // Strip any markdown header hashes
+    const cleanLine = line.replace(/^#{1,6}\s*/, "");
+    const trimmed = cleanLine.trim();
     if (!trimmed) {
       return <div key={idx} className="h-2" />;
     }
-    if (trimmed.startsWith("### ")) {
+
+    // Check if original line was a markdown header (#, ##, ###, ####) or an all-caps section header
+    const isOriginalHeader = /^#{1,6}\s+/.test(line.trim());
+    const isUppercaseHeader =
+      /^[A-Z0-9\s&—\-_:,()]{4,}$/.test(trimmed) &&
+      trimmed.length < 75 &&
+      !trimmed.startsWith("•") &&
+      !trimmed.startsWith("*") &&
+      !trimmed.startsWith("-");
+
+    if (isOriginalHeader || isUppercaseHeader) {
       return (
-        <h4
-          key={idx}
-          className="text-sm font-semibold text-stone-900 mt-2 mb-1"
-        >
-          {formatInline(trimmed.replace(/^###\s+/, ""))}
-        </h4>
+        <div key={idx} className="mt-3.5 mb-2 pt-1 border-b border-stone-100/90 pb-1">
+          <h4 className="text-xs font-bold text-[#1F6F5F] tracking-wider uppercase flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#2FA084]" />
+            {formatInline(trimmed.replace(/:$/, ""))}
+          </h4>
+        </div>
       );
     }
-    if (trimmed.startsWith("## ")) {
-      return (
-        <h3
-          key={idx}
-          className="text-base font-bold text-stone-900 mt-3 mb-1.5"
-        >
-          {formatInline(trimmed.replace(/^##\s+/, ""))}
-        </h3>
-      );
-    }
+
     if (
       trimmed.startsWith("• ") ||
       trimmed.startsWith("- ") ||
       trimmed.startsWith("* ")
     ) {
       return (
-        <div key={idx} className="flex items-start gap-2 my-0.5 pl-1">
-          <span className="text-[#1F6F5F] font-bold text-sm leading-tight">
+        <div key={idx} className="flex items-start gap-2 my-1 pl-1">
+          <span className="text-[#2FA084] font-bold text-sm leading-tight">
             •
           </span>
           <span className="text-stone-700 text-sm leading-relaxed">
@@ -85,6 +88,22 @@ function renderFormattedContent(text: string) {
         </div>
       );
     }
+
+    // Numbered list items (e.g. "1. Repayment Discipline:")
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const match = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      return (
+        <div key={idx} className="flex items-start gap-2 my-1.5 pl-1">
+          <span className="text-xs font-bold text-white bg-[#1F6F5F] w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
+            {match ? match[1] : "•"}
+          </span>
+          <span className="text-stone-700 text-sm leading-relaxed">
+            {formatInline(match ? match[2] : trimmed)}
+          </span>
+        </div>
+      );
+    }
+
     return (
       <p key={idx} className="text-stone-700 text-sm leading-relaxed my-1">
         {formatInline(trimmed)}
@@ -111,10 +130,6 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
   onApproveAction,
 }) => {
   const [approvedState, setApprovedState] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "proof" | "overview" | "cashflow" | "risk"
-  >("proof");
-  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
   const [showOverrideInput, setShowOverrideInput] = useState(false);
   const [overrideReason, setOverrideReason] = useState("");
   const [overrideDecisionType, setOverrideDecisionType] = useState<
@@ -297,252 +312,107 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
               </div>
             </div>
 
-            {/* Interactive Navigation Tabs for Depth */}
-            <div className="flex items-center gap-1.5 p-1 bg-stone-100/80 rounded-xl border border-stone-200/60 text-xs">
-              <button
-                onClick={() => setActiveTab("proof")}
-                className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeTab === "proof"
-                    ? "bg-white text-[#1F6F5F] shadow-xs"
-                    : "text-stone-500 hover:text-stone-800"
-                }`}
-              >
-                Chronological Proof ({proofEvents.length})
-              </button>
-              <button
-                onClick={() => setActiveTab("overview")}
-                className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeTab === "overview"
-                    ? "bg-white text-[#1F6F5F] shadow-xs"
-                    : "text-stone-500 hover:text-stone-800"
-                }`}
-              >
-                Financial & KPIs
-              </button>
-              <button
-                onClick={() => setActiveTab("cashflow")}
-                className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeTab === "cashflow"
-                    ? "bg-white text-[#1F6F5F] shadow-xs"
-                    : "text-stone-500 hover:text-stone-800"
-                }`}
-              >
-                Cash Flow Schedule
-              </button>
-              <button
-                onClick={() => setActiveTab("risk")}
-                className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all cursor-pointer ${
-                  activeTab === "risk"
-                    ? "bg-white text-[#1F6F5F] shadow-xs"
-                    : "text-stone-500 hover:text-stone-800"
-                }`}
-              >
-                Risk Pillars
-              </button>
-            </div>
-
-            {/* TAB 0: Chronological Proof Timeline */}
-            {activeTab === "proof" && (
-              <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-stone-100">
-                  <div className="flex items-center gap-2">
-                    <History className="w-4 h-4 text-[#1F6F5F]" />
-                    <h4 className="text-xs font-semibold text-stone-900">
-                      Chronological Ledger & Evidence Proof
-                    </h4>
-                  </div>
-                  <span className="text-[11px] font-medium text-[#1F6F5F] bg-[#6FCF97]/20 px-2 py-0.5 rounded-full">
-                    {proofEvents.length} Verified Records
-                  </span>
+            {/* Chronological Proof Timeline */}
+            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-[#1F6F5F]" />
+                  <h4 className="text-xs font-semibold text-stone-900">
+                    Chronological Ledger & Evidence Proof
+                  </h4>
                 </div>
+                <span className="text-[11px] font-medium text-[#1F6F5F] bg-[#6FCF97]/20 px-2 py-0.5 rounded-full">
+                  {proofEvents.length} Verified Records
+                </span>
+              </div>
 
-                <div className="space-y-3 relative pl-4 border-l-2 border-[#2FA084]/40 ml-2 pt-1">
-                  {proofEvents.map((evt, idx) => (
-                    <div key={idx} className="relative group">
-                      {/* Timeline dot */}
-                      <div className="absolute -left-[23px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-[#2FA084] shadow-xs flex items-center justify-center">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              <div className="space-y-3 relative pl-4 border-l-2 border-[#2FA084]/40 ml-2 pt-1">
+                {proofEvents.map((evt, idx) => (
+                  <div key={idx} className="relative group">
+                    {/* Timeline dot */}
+                    <div className="absolute -left-[23px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-[#2FA084] shadow-xs flex items-center justify-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+
+                    <div className="bg-stone-50/80 hover:bg-stone-50 border border-stone-200/70 p-3 rounded-xl transition-all">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-[11px] font-bold text-stone-900">
+                          {evt.period}
+                        </span>
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                            evt.eventType === "LOAN_DISBURSED"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : evt.eventType === "LOAN_REPAID"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : evt.eventType === "GRAIN_SALE"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {evt.eventType.replace("_", " ")}
+                        </span>
                       </div>
-
-                      <div className="bg-stone-50/80 hover:bg-stone-50 border border-stone-200/70 p-3 rounded-xl transition-all">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="text-[11px] font-bold text-stone-900">
-                            {evt.period}
-                          </span>
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
-                              evt.eventType === "LOAN_DISBURSED"
-                                ? "bg-blue-50 text-blue-700 border border-blue-200"
-                                : evt.eventType === "LOAN_REPAID"
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : evt.eventType === "GRAIN_SALE"
-                                    ? "bg-purple-50 text-purple-700 border border-purple-200"
-                                    : "bg-amber-50 text-amber-700 border border-amber-200"
-                            }`}
-                          >
-                            {evt.eventType.replace("_", " ")}
+                      <p className="text-xs text-stone-700 leading-relaxed font-normal">
+                        {evt.description}
+                      </p>
+                      {evt.institutionOrBuyer && (
+                        <div className="mt-2 text-[11px] text-stone-500 flex items-center gap-1.5 pt-1.5 border-t border-stone-200/60">
+                          <Building2 className="w-3 h-3 text-stone-400" />
+                          <span>
+                            Verified Counterparty:{" "}
+                            <strong className="font-semibold text-stone-700">
+                              {evt.institutionOrBuyer}
+                            </strong>
                           </span>
                         </div>
-                        <p className="text-xs text-stone-700 leading-relaxed font-normal">
-                          {evt.description}
-                        </p>
-                        {evt.institutionOrBuyer && (
-                          <div className="mt-2 text-[11px] text-stone-500 flex items-center gap-1.5 pt-1.5 border-t border-stone-200/60">
-                            <Building2 className="w-3 h-3 text-stone-400" />
-                            <span>
-                              Verified Counterparty:{" "}
-                              <strong className="font-semibold text-stone-700">
-                                {evt.institutionOrBuyer}
-                              </strong>
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 1: Financial & Agronomic KPIs */}
-            {activeTab === "overview" && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {structuredData.assessment.financialKpis.map((kpi, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white p-3 rounded-xl border border-stone-200/70 shadow-2xs"
-                  >
-                    <p className="text-[11px] text-stone-500 line-clamp-1">
-                      {kpi.label}
-                    </p>
-                    <p className="text-lg font-bold text-stone-900 font-mono mt-1">
-                      {kpi.value}
-                    </p>
-                    <p className="text-[10px] text-[#1F6F5F] font-medium mt-0.5">
-                      {kpi.subtext}
-                    </p>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
 
-            {/* TAB 2: Seasonal Cash Flow Chart */}
-            {activeTab === "cashflow" && (
-              <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-xs font-semibold text-stone-800">
-                      Monthly Cash Flow vs Scheduled Debt Repayment (RWF
-                      Millions)
-                    </h4>
-                    <p className="text-[11px] text-stone-400">
-                      Harvest aggregation, sales realization & debt amortisation
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px]">
-                    <span className="flex items-center gap-1.5 text-stone-600">
-                      <span className="w-2.5 h-2.5 rounded-xs bg-[#2FA084]" />{" "}
-                      Revenue
-                    </span>
-                    <span className="flex items-center gap-1.5 text-stone-600">
-                      <span className="w-2.5 h-2.5 rounded-xs bg-[#1F6F5F]" />{" "}
-                      Debt Service
-                    </span>
-                  </div>
+            {/* Risk Pillars from Scoring Engine & Database (Direct Display) */}
+            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#1F6F5F]" />
+                  <h4 className="text-xs font-semibold text-stone-900">
+                    Risk Pillar Scores & Safeguards (PostgreSQL & Calibrated Model)
+                  </h4>
                 </div>
-
-                {/* Bar visualization */}
-                <div className="h-44 w-full flex items-end gap-2 pt-6 pb-2 px-2 border-b border-stone-100">
-                  {structuredData.assessment.cashFlowSchedule.map((pt, i) => {
-                    const maxVal = 60;
-                    const revHeight = Math.min(
-                      100,
-                      (pt.projectedRevenue / maxVal) * 100,
-                    );
-                    const debtHeight = Math.min(
-                      100,
-                      (pt.scheduledDebtService / maxVal) * 100,
-                    );
-                    const isHovered = hoveredMonth === i;
-
-                    return (
-                      <div
-                        key={pt.month}
-                        onMouseEnter={() => setHoveredMonth(i)}
-                        onMouseLeave={() => setHoveredMonth(null)}
-                        className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                      >
-                        {isHovered && (
-                          <div className="absolute -top-12 z-20 bg-stone-900 text-white text-[10px] px-2 py-1 rounded-md shadow-lg pointer-events-none whitespace-nowrap">
-                            <div>Rev: RWF {pt.projectedRevenue}M</div>
-                            <div>Debt: RWF {pt.scheduledDebtService}M</div>
-                          </div>
-                        )}
-
-                        <div className="w-full flex items-end justify-center gap-1 h-full">
-                          <div
-                            style={{ height: `${revHeight}%` }}
-                            className="w-1/2 max-w-[16px] bg-[#2FA084] rounded-t-xs transition-all group-hover:bg-[#25876f]"
-                          />
-                          <div
-                            style={{ height: `${debtHeight}%` }}
-                            className="w-1/2 max-w-[16px] bg-[#1F6F5F] rounded-t-xs transition-all group-hover:bg-[#154e42]"
-                          />
-                        </div>
-                        <span className="text-[10px] font-mono text-stone-500 mt-2">
-                          {pt.month}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex items-center justify-between text-xs text-stone-500 bg-stone-50 p-2.5 rounded-lg">
-                  <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                    <ShieldCheck className="w-4 h-4 text-[#2FA084]" />
-                    Peak debt coverage occurs in Dec-Jan during harvest sales
-                  </span>
-                  <span className="font-mono text-[11px] text-[#1F6F5F]">
-                    Min Coverage: 1.5x
-                  </span>
-                </div>
+                <span className="text-[11px] font-semibold text-[#1F6F5F] bg-[#6FCF97]/20 px-2 py-0.5 rounded-full">
+                  Score: {structuredData.assessment.score}/100
+                </span>
               </div>
-            )}
-
-            {/* TAB 3: Risk Breakdown */}
-            {activeTab === "risk" && (
-              <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
-                <h4 className="text-xs font-semibold text-stone-800">
-                  Risk Pillar Scores & Safeguards
-                </h4>
-                <div className="space-y-3">
-                  {structuredData.assessment.riskBreakdown.map((item, idx) => (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-stone-800">
-                          {item.category}
+              <div className="space-y-3 pt-1">
+                {structuredData.assessment.riskBreakdown.map((item, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-stone-800">
+                        {item.category}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-[#1F6F5F]">
+                          {item.score}/100
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-[#1F6F5F]">
-                            {item.score}/100
-                          </span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium">
-                            {item.level}
-                          </span>
-                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-[#1F6F5F] font-semibold border border-stone-200/60">
+                          {item.level}
+                        </span>
                       </div>
-                      <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
-                        <div
-                          style={{ width: `${item.score}%` }}
-                          className="bg-[#2FA084] h-full rounded-full"
-                        />
-                      </div>
-                      <p className="text-[11px] text-stone-500">{item.notes}</p>
                     </div>
-                  ))}
-                </div>
+                    <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${Math.min(100, Math.max(0, item.score))}%` }}
+                        className="bg-[#2FA084] h-full rounded-full transition-all duration-300"
+                      />
+                    </div>
+                    <p className="text-[11px] text-stone-600 leading-normal">{item.notes}</p>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
 
             {/* Officer Approval & Override Actions Bar */}
             <div className="bg-[#1F6F5F]/5 border border-[#1F6F5F]/20 rounded-xl p-3.5 space-y-3">

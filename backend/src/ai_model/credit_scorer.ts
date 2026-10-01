@@ -209,20 +209,44 @@ export class CreditScorerService {
 
   private scoreOperationalCapacity(features: AggregatedCreditFeatures): ScoringPillar {
     let pts = 0;
-    if (features.totalHectares >= 60) pts += 6;
-    else if (features.totalHectares >= 30) pts += 4;
+    // 1. Farmland scale (up to 5 pts)
+    if (features.totalHectares >= 60) pts += 5;
+    else if (features.totalHectares >= 30) pts += 3;
+    else pts += 1;
 
-    if (features.storageCapacityT >= 100) pts += 6;
-    else if (features.storageCapacityT >= 40) pts += 4;
+    // 2. Storage type & post-harvest loss factor (up to 5 pts)
+    // Aerated warehouse reduces post-harvest loss from 12% down to 3%
+    const isAerated = features.storageFacilityType === 'AERATED_WAREHOUSE' || features.storageCapacityT >= 60;
+    const isShed = features.storageFacilityType === 'TRADITIONAL_SHED';
+    if (isAerated) {
+      pts += 5; // minimal post-harvest loss ~3%
+    } else if (isShed) {
+      pts += 1; // traditional shed post-harvest loss risk ~12%
+    } else {
+      pts += 3; // standard storage
+    }
 
-    pts += Math.round((features.recordQuality / 100) * 8);
+    // 3. Seasonal stability factor (up to 3 pts)
+    // Season A (Sept-Feb, major maize season) vs Season B (Mar-June, short rains)
+    if (features.agriculturalSeason === 'SEASON_A' || !features.agriculturalSeason) {
+      pts += 3;
+    } else {
+      pts += 2;
+    }
+
+    // 4. Audited record quality (up to 7 pts)
+    pts += Math.round((features.recordQuality / 100) * 7);
 
     pts = Math.min(20, Math.max(0, pts));
+    const storageDesc = isAerated
+      ? `${features.storageCapacityT} MT aerated warehouse (3% post harvest loss)`
+      : `${features.storageCapacityT} MT storage facility`;
+
     return {
       pillarName: 'Operational & Storage Infrastructure',
       scoreAwarded: pts,
       maxPoints: 20,
-      summary: `${features.totalHectares} Ha farmland, ${features.storageCapacityT} MT aerated warehouse, and ${features.recordQuality}/100 audited record quality.`,
+      summary: `${features.totalHectares} Ha farmland, ${storageDesc}, and ${features.recordQuality}/100 audited record quality.`,
     };
   }
 

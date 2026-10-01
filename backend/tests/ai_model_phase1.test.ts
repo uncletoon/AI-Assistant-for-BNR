@@ -27,7 +27,7 @@ describe('Phase 1: Core AI Model Extraction & Feature Builder', () => {
     expect(extracted.tenorMonths).toBe(6);
     expect(extracted.cultivatedHectares).toBe(85.5);
     expect(extracted.documentConfidence).toBeGreaterThan(0.9);
-  });
+  }, 30000);
 
   it('extracts structured commercial off-take agreement parameters', async () => {
     const rawContractText = `
@@ -46,7 +46,25 @@ describe('Phase 1: Core AI Model Extraction & Feature Builder', () => {
     expect(extracted.agreedPriceRwfKg).toBe(420);
     expect(extracted.totalContractValueRwf).toBe(350000 * 420);
     expect(extracted.isVerified).toBe(true);
-  });
+  }, 30000);
+
+  it('extracts embedded off-take agreement from application section text', async () => {
+    const sectionText = `
+      3. Agronomic Productive Capacity & Repayment Guarantee
+      Total Cultivated Farmland Area: 85.5 Hectares under active maize cultivation in Bumbogo marshlands
+      Consolidated Storage & Drying Capacity: 120 Metric Tons dedicated aerated brick warehouse with moisture meters
+      Historical Average Seasonal Yield: 4,200 Kilograms per Hectare (Estimated Gross Output: 359,100 KG)
+      Audited Institutional Record Rating: 95 / 100 on official RCA Audit and digital ledger system
+      Primary Forward Off-Take Partner: ABC Trade Ltd (Binding contract for 100,000 KG at RWF 420/KG = RWF 42,000,000)
+    `;
+
+    const extracted = await documentExtractor.extractOfftakeAgreement(sectionText);
+
+    expect(extracted.buyerName).toBe('ABC Trade Ltd');
+    expect(extracted.contractedVolumeKg).toBe(100000);
+    expect(extracted.agreedPriceRwfKg).toBe(420);
+    expect(extracted.totalContractValueRwf).toBe(42000000);
+  }, 30000);
 
   it('aggregates document features with PostgreSQL records and generates chronological proof timeline', async () => {
     const application = {

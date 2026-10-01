@@ -1,11 +1,12 @@
-import React from 'react';
-import { Sprout, Bell, Menu, CheckCircle2 } from 'lucide-react';
+import React from "react";
+import { Sprout, Bell, Menu, CheckCircle2, Trash2 } from "lucide-react";
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
   sidebarOpen?: boolean;
   onNewAssessment?: () => void;
   activeConversationTitle?: string;
+  onClearHistoryCascade?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -13,6 +14,7 @@ export const Header: React.FC<HeaderProps> = ({
   sidebarOpen,
   onNewAssessment,
   activeConversationTitle,
+  onClearHistoryCascade,
 }) => {
   return (
     <header className="w-full flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-stone-200/80 bg-white/70 backdrop-blur-md rounded-t-2xl sm:rounded-t-3xl transition-all z-20">
@@ -21,12 +23,14 @@ export const Header: React.FC<HeaderProps> = ({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            aria-label={sidebarOpen ? 'Hide assessment menu' : 'Show assessment menu'}
-            title={sidebarOpen ? 'Hide menu' : 'Show assessment history'}
+            aria-label={
+              sidebarOpen ? "Hide assessment menu" : "Show assessment menu"
+            }
+            title={sidebarOpen ? "Hide menu" : "Show assessment history"}
             className={`p-2 rounded-xl transition-all duration-150 flex items-center justify-center cursor-pointer ${
               sidebarOpen
-                ? 'bg-[#1F6F5F]/10 text-[#1F6F5F] ring-1 ring-[#1F6F5F]/20'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                ? "bg-[#1F6F5F]/10 text-[#1F6F5F] ring-1 ring-[#1F6F5F]/20"
+                : "text-stone-600 hover:text-stone-900 hover:bg-stone-100"
             }`}
           >
             <Menu className="w-5 h-5" />
@@ -63,10 +67,8 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-
-
-      {/* Right: Notifications & Credit Officer Profile */}
-      <div className="flex items-center gap-3">
+      {/* Right: Actions, Notifications & Credit Officer Profile */}
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           aria-label="View notifications"

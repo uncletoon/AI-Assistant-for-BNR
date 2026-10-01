@@ -10,7 +10,6 @@ import {
   Upload,
   FileUp,
 } from 'lucide-react';
-import { SAMPLE_DOCUMENTS } from '../data/mockData';
 
 export interface FileAttachmentItem {
   name: string;
@@ -162,22 +161,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
-  const toggleSampleAttachment = (doc: (typeof SAMPLE_DOCUMENTS)[0]) => {
-    const exists = selectedAttachments.some((a) => a.name === doc.name);
-    if (exists) {
-      setSelectedAttachments((prev) => prev.filter((a) => a.name !== doc.name));
-    } else {
-      setSelectedAttachments((prev) => [
-        ...prev,
-        {
-          name: doc.name,
-          size: doc.size,
-          type: doc.type,
-        },
-      ]);
-    }
-  };
-
   const removeAttachment = (name: string) => {
     setSelectedAttachments((prev) => prev.filter((a) => a.name !== name));
   };
@@ -271,55 +254,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 {/* Direct Upload Button from Computer */}
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    fileInputRef.current?.click();
+                    setShowAttachmentMenu(false);
+                  }}
                   className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#1F6F5F] hover:bg-[#18574a] text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
-                  <span>Upload Files from Computer</span>
+                  <span>Browse Device Files (.pdf, .png, .txt)</span>
                 </button>
 
-                {/* Sample Preloaded Repository Documents */}
-                <div className="pt-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 block mb-1">
-                    Or select sample documents
-                  </span>
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {SAMPLE_DOCUMENTS.map((doc) => {
-                      const isSelected = selectedAttachments.some(
-                        (a) => a.name === doc.name
-                      );
-                      return (
-                        <button
-                          key={doc.name}
-                          type="button"
-                          onClick={() => toggleSampleAttachment(doc)}
-                          className={`w-full text-left p-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#6FCF97]/20 border border-[#2FA084]/30 text-stone-900'
-                              : 'hover:bg-stone-50 text-stone-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 truncate pr-2">
-                            <FileText
-                              className={`w-3.5 h-3.5 shrink-0 ${
-                                isSelected ? 'text-[#1F6F5F]' : 'text-stone-400'
-                              }`}
-                            />
-                            <div className="truncate">
-                              <p className="font-medium truncate">{doc.name}</p>
-                              <p className="text-[10px] text-stone-400">
-                                {doc.type} · {doc.size}
-                              </p>
-                            </div>
-                          </div>
-
-                          {isSelected && (
-                            <Check className="w-3.5 h-3.5 text-[#1F6F5F] shrink-0" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/60 text-center">
+                  <FileUp className="w-6 h-6 text-[#1F6F5F] mx-auto mb-1 opacity-80" />
+                  <p className="text-[11px] font-medium text-stone-700">Drag & drop documents here</p>
+                  <p className="text-[10px] text-stone-400 mt-0.5">Supports signed loan forms, offtake agreements & ledgers</p>
                 </div>
 
                 <div className="pt-1 text-[11px] text-stone-400 flex items-center gap-1 border-t border-stone-100">

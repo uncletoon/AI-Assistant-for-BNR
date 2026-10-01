@@ -196,10 +196,13 @@ export class FeatureBuilderService {
       totalContractValueRwf: contractValStr,
       offtakeCoverageRatio: offtakeCoverage,
 
-      // Cooperative Capacity
+      // Cooperative Capacity & Agricultural / Storage Factors
       totalHectares: coop.totalHectares,
       memberCount: coop.memberCount,
       storageCapacityT: coop.storageCapacityT,
+      storageFacilityType: application.storageFacilityType || (coop.storageCapacityT >= 60 ? 'AERATED_WAREHOUSE' : 'STANDARD_STORAGE'),
+      agriculturalSeason: application.season || (application.purpose?.includes('Season B') || application.purpose?.includes('2026B') ? 'SEASON_B' : 'SEASON_A'),
+      postHarvestLossRiskPct: (application.storageFacilityType === 'TRADITIONAL_SHED') ? 12 : 3,
       recordQuality: coop.recordQuality,
       hasDigitalHistory: coop.hasDigitalHistory,
       womenLed: coop.womenLed,

@@ -10,7 +10,7 @@ export class ExplainabilityEngineService {
   ): string {
     const lines: string[] = [];
 
-    lines.push(`## Credit Assessment Report: ${features.cooperativeName}`);
+    lines.push(`## Credit Assessment Report: ${features.cooperativeName} (${features.sector} Sector, Gasabo District)`);
     lines.push(`**Overall Credit Score:** ${result.scoreOutOf100}/100% · **Risk Rating:** ${result.riskBand} Risk`);
     lines.push(`**Estimated Default Probability:** ${(result.defaultProbability * 100).toFixed(1)}%`);
     lines.push(`**Requested Facility:** RWF ${(Number(features.requestedAmountRwf) / 1000000).toFixed(1)} Million (${features.tenorMonths} months tenor)`);

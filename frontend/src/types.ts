@@ -22,6 +22,13 @@ export interface RiskFactor {
   notes: string;
 }
 
+export interface ScoringPillarItem {
+  pillarName: string;
+  scoreAwarded: number;
+  maxPoints: number;
+  summary: string;
+}
+
 export interface CreditAssessmentData {
   applicantName: string;
   applicantType: string;
@@ -40,6 +47,15 @@ export interface CreditAssessmentData {
   cashFlowSchedule: MonthlyCashFlowPoint[];
   riskBreakdown: RiskFactor[];
   approvalConditions: string[];
+  pillars?: {
+    repaymentDiscipline?: ScoringPillarItem;
+    offtakeSecurity?: ScoringPillarItem;
+    cashFlowHealth?: ScoringPillarItem;
+    operationalCapacity?: ScoringPillarItem;
+  };
+  chronologicalTimeline?: ProofEvent[];
+  persistedCaseId?: string;
+  persistedScoreId?: string;
 }
 
 export interface PortfolioData {
