@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   CreditCard,
   ShieldCheck,
@@ -15,19 +15,112 @@ import {
   Printer,
   ChevronDown,
   Check,
-} from 'lucide-react';
+  History,
+  Coins,
+  ShieldAlert,
+} from "lucide-react";
 import {
   StructuredAiData,
   CreditAssessmentData,
   PortfolioData,
   ReportData,
-} from '../types';
+  ProofEvent,
+} from "../types";
+
+function formatInline(str: string): React.ReactNode[] {
+  const parts = str.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-bold text-stone-950">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return part;
+  });
+}
+
+function renderFormattedContent(text: string) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  return lines.map((line, idx) => {
+    // Strip any markdown header hashes
+    const cleanLine = line.replace(/^#{1,6}\s*/, "");
+    const trimmed = cleanLine.trim();
+    if (!trimmed) {
+      return <div key={idx} className="h-2" />;
+    }
+
+    // Check if original line was a markdown header (#, ##, ###, ####) or an all-caps section header
+    const isOriginalHeader = /^#{1,6}\s+/.test(line.trim());
+    const isUppercaseHeader =
+      /^[A-Z0-9\s&—\-_:,()]{4,}$/.test(trimmed) &&
+      trimmed.length < 75 &&
+      !trimmed.startsWith("•") &&
+      !trimmed.startsWith("*") &&
+      !trimmed.startsWith("-");
+
+    if (isOriginalHeader || isUppercaseHeader) {
+      return (
+        <div key={idx} className="mt-4 mb-2 pt-1.5 border-b border-stone-200 pb-1.5">
+          <h4 className="text-xs font-extrabold text-[#134e4a] tracking-wider uppercase flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[#1F6F5F]" />
+            {formatInline(trimmed.replace(/:$/, ""))}
+          </h4>
+        </div>
+      );
+    }
+
+    if (
+      trimmed.startsWith("• ") ||
+      trimmed.startsWith("- ") ||
+      trimmed.startsWith("* ")
+    ) {
+      return (
+        <div key={idx} className="flex items-start gap-2 my-1 pl-1">
+          <span className="text-[#1F6F5F] font-bold text-base leading-tight">
+            •
+          </span>
+          <span className="text-stone-900 text-sm leading-relaxed font-normal">
+            {formatInline(trimmed.replace(/^[•\-\*]\s+/, ""))}
+          </span>
+        </div>
+      );
+    }
+
+    // Numbered list items (e.g. "1. Repayment Discipline:")
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const match = trimmed.match(/^(\d+)\.\s+(.*)$/);
+      return (
+        <div key={idx} className="flex items-start gap-2.5 my-2 pl-1">
+          <span className="text-xs font-bold text-white bg-[#1F6F5F] w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[10px]">
+            {match ? match[1] : "•"}
+          </span>
+          <span className="text-stone-900 text-sm leading-relaxed font-normal">
+            {formatInline(match ? match[2] : trimmed)}
+          </span>
+        </div>
+      );
+    }
+
+    return (
+      <p key={idx} className="text-stone-900 text-sm leading-relaxed my-1 font-normal">
+        {formatInline(trimmed)}
+      </p>
+    );
+  });
+}
 
 interface AiMessageRendererProps {
   content: string;
   structuredData?: StructuredAiData;
   onOpenReportModal?: (report: ReportData | CreditAssessmentData) => void;
-  onApproveAction?: (applicant: string) => void;
+  onApproveAction?: (
+    applicant: string,
+    reason?: string,
+    decision?: string,
+  ) => void;
 }
 
 export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
@@ -37,506 +130,543 @@ export const AiMessageRenderer: React.FC<AiMessageRendererProps> = ({
   onApproveAction,
 }) => {
   const [approvedState, setApprovedState] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'cashflow' | 'risk'>('overview');
-  const [hoveredMonth, setHoveredMonth] = useState<number | null>(null);
+  const [showOverrideInput, setShowOverrideInput] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideDecisionType, setOverrideDecisionType] = useState<
+    "OVERRIDE_APPROVE" | "OVERRIDE_REJECT"
+  >("OVERRIDE_APPROVE");
 
   const handleApprove = (applicant: string) => {
     setApprovedState(true);
     if (onApproveAction) {
-      onApproveAction(applicant);
+      onApproveAction(
+        applicant,
+        "Approved based on deterministic risk scorecard recommendation",
+        "APPROVE",
+      );
     }
   };
 
+  const handleOverrideSubmit = (applicant: string) => {
+    if (!overrideReason.trim()) return;
+    setApprovedState(true);
+    setShowOverrideInput(false);
+    if (onApproveAction) {
+      onApproveAction(applicant, overrideReason.trim(), overrideDecisionType);
+    }
+  };
+
+  // Extract or fallback chronological proof events
+  const proofEvents: ProofEvent[] =
+    structuredData?.proofEvents ||
+    structuredData?.backendAssessment?.features.chronologicalProofEvents ||
+    (structuredData?.assessment
+      ? [
+          {
+            period: "February 2024",
+            eventType: "LOAN_DISBURSED",
+            description: `In February 2024, the cooperative secured a seasonal loan of RWF 10.0 Million from Bumbogo Umurenge SACCO with a 6-month tenor.`,
+            amountRwf: "10000000",
+            institutionOrBuyer: "Bumbogo Umurenge SACCO",
+            status: "positive",
+          },
+          {
+            period: "May 2024",
+            eventType: "LOAN_REPAID",
+            description: `In May 2024, the cooperative paid their scheduled installment of RWF 2.5 Million on time with zero days past due.`,
+            amountRwf: "2500000",
+            institutionOrBuyer: "Bumbogo Umurenge SACCO",
+            status: "positive",
+          },
+          {
+            period: "June 2025",
+            eventType: "GRAIN_SALE",
+            description: `In June 2025, the cooperative recorded a verified grain sale of RWF 18.5 Million from buyer Africa Improved Foods (AIF).`,
+            amountRwf: "18500000",
+            institutionOrBuyer: "Africa Improved Foods",
+            status: "positive",
+          },
+          {
+            period: "Active Contract 2026",
+            eventType: "CONTRACT_SIGNED",
+            description: `In 2026, the cooperative finalized a verified forward contract with Africa Improved Foods (AIF) for 350,000 kilograms of grade 1 maize at RWF 420 per kg.`,
+            amountRwf: "147000000",
+            institutionOrBuyer: "Africa Improved Foods",
+            status: "positive",
+          },
+        ]
+      : []);
+
   return (
-    <div className="space-y-4 text-stone-800 text-sm leading-relaxed max-w-3xl">
-      {/* Intro Prose Text */}
-      <div className="whitespace-pre-line text-stone-800 font-normal">
-        {content}
+    <div className="space-y-4 text-stone-900 text-sm leading-relaxed w-full">
+      {/* Formatted Message Content */}
+      <div className="text-stone-900 font-normal">
+        {renderFormattedContent(content)}
       </div>
 
       {/* Credit Assessment Structured View */}
-      {structuredData?.type === 'credit_assessment' && structuredData.assessment && (
-        <div className="mt-4 space-y-4">
-          {/* Top Score & Summary Banner */}
-          <div className="bg-gradient-to-br from-white to-stone-50 border border-stone-200/90 rounded-2xl p-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-              <div>
+      {structuredData?.type === "credit_assessment" &&
+        structuredData.assessment && (
+          <div className="mt-4 space-y-4">
+            {/* Top Score & Summary Banner */}
+            <div className="bg-gradient-to-br from-white to-stone-50 border border-stone-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-stone-950 text-base">
+                      {structuredData.assessment.applicantName}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-700 font-medium mt-0.5">
+                    {structuredData.assessment.applicantType} ·{" "}
+                    {structuredData.assessment.location}
+                  </p>
+                </div>
+
+                {/* Action buttons */}
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-stone-900 text-base">
-                    {structuredData.assessment.applicantName}
-                  </span>
-                </div>
-                <p className="text-xs text-stone-500">
-                  {structuredData.assessment.applicantType} · {structuredData.assessment.location}
-                </p>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => onOpenReportModal && onOpenReportModal(structuredData.assessment!)}
-                  className="px-3 py-1.5 text-xs font-medium text-[#1F6F5F] bg-[#6FCF97]/20 hover:bg-[#6FCF97]/30 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>Credit Memo</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Score Grid Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
-              {/* Card 1: Credit Score */}
-              <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs">
-                <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
-                  Credit Score
-                </span>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-2xl font-bold text-[#1F6F5F] font-mono tabular-nums">
-                    {structuredData.assessment.score}
-                  </span>
-                  <span className="text-xs text-stone-400 font-mono">
-                    /{structuredData.assessment.maxScore}
-                  </span>
-                </div>
-                <div className="mt-1.5 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#2FA084]" />
-                  <span className="text-[11px] font-semibold text-[#1F6F5F]">
-                    {structuredData.assessment.riskLevel}
-                  </span>
-                </div>
-              </div>
-
-              {/* Card 2: Risk Level */}
-              <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs">
-                <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
-                  Default Probability
-                </span>
-                <div className="text-2xl font-bold text-stone-800 font-mono tabular-nums mt-1">
-                  {structuredData.assessment.defaultProbability}
-                </div>
-                <p className="text-[11px] text-[#2FA084] font-medium mt-1.5">
-                  Well below 8.0% threshold
-                </p>
-              </div>
-
-              {/* Card 3: Recommended Limit */}
-              <div className="bg-white p-3.5 rounded-xl border border-stone-200/80 shadow-2xs col-span-2 sm:col-span-2">
-                <span className="text-[11px] font-medium text-stone-400 block uppercase tracking-wider">
-                  Recommended Limit
-                </span>
-                <div className="text-xl sm:text-2xl font-bold text-[#1F6F5F] font-mono tabular-nums mt-1">
-                  {structuredData.assessment.recommendedCreditLimit}
-                </div>
-                <p className="text-[11px] text-stone-500 mt-1.5">
-                  100% covered by warehoused maize collateral & contracts
-                </p>
-              </div>
-            </div>
-
-            {/* Key Factors */}
-            <div className="mt-4 pt-4 border-t border-stone-100">
-              <h4 className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-2.5">
-                Key Assessment Factors
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {structuredData.assessment.keyFactors.map((factor, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-start gap-2 text-xs text-stone-700 bg-white/80 p-2.5 rounded-lg border border-stone-100"
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenReportModal &&
+                      onOpenReportModal(structuredData.assessment!)
+                    }
+                    className="px-3 py-1.5 text-xs font-semibold text-[#134e4a] bg-[#6FCF97]/25 hover:bg-[#6FCF97]/40 border border-[#2FA084]/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    {factor.type === 'positive' ? (
-                      <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    )}
-                    <span>{factor.text}</span>
+                    <FileText className="w-3.5 h-3.5 text-[#134e4a]" />
+                    <span>Credit Memo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Score Grid Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+                {/* Card 1: Credit Score */}
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
+                    Credit Score
+                  </span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-2xl font-black text-[#134e4a] font-mono tabular-nums">
+                      {structuredData.assessment.score}
+                    </span>
+                    <span className="text-xs text-stone-600 font-mono font-semibold">
+                      /{structuredData.assessment.maxScore}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-[#2FA084]" />
+                    <span className="text-[11px] font-bold text-[#134e4a]">
+                      {structuredData.assessment.riskLevel}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card 2: Risk Level */}
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
+                    Default Probability
+                  </span>
+                  <div className="text-2xl font-black text-stone-950 font-mono tabular-nums mt-1">
+                    {structuredData.assessment.defaultProbability}
+                  </div>
+                  <p className="text-[11px] text-[#134e4a] font-bold mt-1.5">
+                    Well below 8.0% threshold
+                  </p>
+                </div>
+
+                {/* Card 3: Recommended Limit */}
+                <div className="bg-white p-3.5 rounded-xl border border-stone-200 shadow-2xs col-span-2 sm:col-span-2">
+                  <span className="text-[11px] font-bold text-stone-700 block uppercase tracking-wider">
+                    Recommended Limit
+                  </span>
+                  <div className="text-xl sm:text-2xl font-black text-[#134e4a] font-mono tabular-nums mt-1">
+                    {structuredData.assessment.recommendedCreditLimit}
+                  </div>
+                  <p className="text-[11px] text-stone-700 font-medium mt-1.5">
+                    100% covered by warehoused maize collateral & contracts
+                  </p>
+                </div>
+              </div>
+
+              {/* Key Factors */}
+              <div className="mt-4 pt-4 border-t border-stone-200">
+                <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider mb-2.5">
+                  Key Assessment Factors
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {structuredData.assessment.keyFactors.map((factor, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-2 text-xs font-medium text-stone-900 bg-white p-2.5 rounded-lg border border-stone-200"
+                    >
+                      {factor.type === "positive" ? (
+                        <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      )}
+                      <span>{factor.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Chronological Proof Timeline */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-[#134e4a]" />
+                  <h4 className="text-xs font-bold text-stone-950 uppercase tracking-wider">
+                    Chronological Ledger & Evidence Proof
+                  </h4>
+                </div>
+                <span className="text-[11px] font-bold text-[#134e4a] bg-[#6FCF97]/25 px-2.5 py-0.5 rounded-full border border-[#2FA084]/30">
+                  {proofEvents.length} Verified Records
+                </span>
+              </div>
+
+              <div className="space-y-3 relative pl-4 border-l-2 border-[#2FA084]/50 ml-2 pt-1">
+                {proofEvents.map((evt, idx) => (
+                  <div key={idx} className="relative group">
+                    {/* Timeline dot */}
+                    <div className="absolute -left-[23px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white bg-[#2FA084] shadow-xs flex items-center justify-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </div>
+
+                    <div className="bg-stone-50/90 hover:bg-stone-50 border border-stone-200 p-3.5 rounded-xl transition-all">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-xs font-extrabold text-stone-950">
+                          {evt.period}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-md ${
+                            evt.eventType === "LOAN_DISBURSED"
+                              ? "bg-blue-100 text-blue-900 border border-blue-300"
+                              : evt.eventType === "LOAN_REPAID"
+                                ? "bg-emerald-100 text-emerald-900 border border-emerald-300"
+                                : evt.eventType === "GRAIN_SALE"
+                                  ? "bg-purple-100 text-purple-900 border border-purple-300"
+                                  : "bg-amber-100 text-amber-900 border border-amber-300"
+                          }`}
+                        >
+                          {evt.eventType.replace("_", " ")}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-900 leading-relaxed font-normal">
+                        {evt.description}
+                      </p>
+                      {evt.institutionOrBuyer && (
+                        <div className="mt-2 text-xs text-stone-700 flex items-center gap-1.5 pt-2 border-t border-stone-200">
+                          <Building2 className="w-3.5 h-3.5 text-stone-500" />
+                          <span>
+                            Verified Counterparty:{" "}
+                            <strong className="font-bold text-stone-950">
+                              {evt.institutionOrBuyer}
+                            </strong>
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
 
-          {/* Interactive Navigation Tabs for Depth */}
-          <div className="flex items-center gap-1.5 p-1 bg-stone-100/80 rounded-xl border border-stone-200/60 text-xs">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'overview'
-                  ? 'bg-white text-[#1F6F5F] shadow-xs'
-                  : 'text-stone-500 hover:text-stone-800'
-              }`}
-            >
-              Financial & Agronomic KPIs
-            </button>
-            <button
-              onClick={() => setActiveTab('cashflow')}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'cashflow'
-                  ? 'bg-white text-[#1F6F5F] shadow-xs'
-                  : 'text-stone-500 hover:text-stone-800'
-              }`}
-            >
-              Seasonal Cash Flow Schedule
-            </button>
-            <button
-              onClick={() => setActiveTab('risk')}
-              className={`flex-1 py-1.5 px-3 rounded-lg font-medium transition-all ${
-                activeTab === 'risk'
-                  ? 'bg-white text-[#1F6F5F] shadow-xs'
-                  : 'text-stone-500 hover:text-stone-800'
-              }`}
-            >
-              Risk Pillar Breakdown
-            </button>
-          </div>
-
-          {/* TAB 1: Financial & Agronomic KPIs */}
-          {activeTab === 'overview' && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {structuredData.assessment.financialKpis.map((kpi, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white p-3 rounded-xl border border-stone-200/70 shadow-2xs"
-                >
-                  <p className="text-[11px] text-stone-500 line-clamp-1">{kpi.label}</p>
-                  <p className="text-lg font-bold text-stone-900 font-mono mt-1">
-                    {kpi.value}
-                  </p>
-                  <p className="text-[10px] text-[#1F6F5F] font-medium mt-0.5">
-                    {kpi.subtext}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* TAB 2: Seasonal Cash Flow Chart */}
-          {activeTab === 'cashflow' && (
-            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="text-xs font-semibold text-stone-800">
-                    Monthly Cash Flow vs Scheduled Debt Repayment (RWF Millions)
+            {/* Risk Pillars from Scoring Engine & Database (Direct Display) */}
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-stone-200 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-200">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#134e4a]" />
+                  <h4 className="text-xs font-bold text-stone-950 uppercase tracking-wider">
+                    Risk Pillar Scores & Safeguards (PostgreSQL & Calibrated Model)
                   </h4>
-                  <p className="text-[11px] text-stone-400">
-                    Harvest aggregation, sales realization & debt amortisation
-                  </p>
                 </div>
-                <div className="flex items-center gap-3 text-[11px]">
-                  <span className="flex items-center gap-1.5 text-stone-600">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#2FA084]" /> Revenue
-                  </span>
-                  <span className="flex items-center gap-1.5 text-stone-600">
-                    <span className="w-2.5 h-2.5 rounded-xs bg-[#1F6F5F]" /> Debt Service
-                  </span>
-                </div>
-              </div>
-
-              {/* Bar visualization */}
-              <div className="h-44 w-full flex items-end gap-2 pt-6 pb-2 px-2 border-b border-stone-100">
-                {structuredData.assessment.cashFlowSchedule.map((pt, i) => {
-                  const maxVal = 60; // scale
-                  const revHeight = Math.min(100, (pt.projectedRevenue / maxVal) * 100);
-                  const debtHeight = Math.min(100, (pt.scheduledDebtService / maxVal) * 100);
-                  const isHovered = hoveredMonth === i;
-
-                  return (
-                    <div
-                      key={pt.month}
-                      onMouseEnter={() => setHoveredMonth(i)}
-                      onMouseLeave={() => setHoveredMonth(null)}
-                      className="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer relative"
-                    >
-                      {/* Tooltip on hover */}
-                      {isHovered && (
-                        <div className="absolute -top-12 z-20 bg-stone-900 text-white text-[10px] px-2 py-1 rounded-md shadow-lg pointer-events-none whitespace-nowrap">
-                          <div>Rev: RWF {pt.projectedRevenue}M</div>
-                          <div>Debt: RWF {pt.scheduledDebtService}M</div>
-                        </div>
-                      )}
-
-                      <div className="w-full flex items-end justify-center gap-1 h-full">
-                        <div
-                          style={{ height: `${revHeight}%` }}
-                          className="w-1/2 max-w-[16px] bg-[#2FA084] rounded-t-xs transition-all group-hover:bg-[#25876f]"
-                        />
-                        <div
-                          style={{ height: `${debtHeight}%` }}
-                          className="w-1/2 max-w-[16px] bg-[#1F6F5F] rounded-t-xs transition-all group-hover:bg-[#154e42]"
-                        />
-                      </div>
-                      <span className="text-[10px] font-mono text-stone-500 mt-2">
-                        {pt.month}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between text-xs text-stone-500 bg-stone-50 p-2.5 rounded-lg">
-                <span className="flex items-center gap-1.5 font-medium text-stone-700">
-                  <ShieldCheck className="w-4 h-4 text-[#2FA084]" />
-                  Peak debt coverage occurs in Dec-Jan during harvest sales
+                <span className="text-[11px] font-bold text-[#134e4a] bg-[#6FCF97]/25 px-2.5 py-0.5 rounded-full border border-[#2FA084]/30">
+                  Score: {structuredData.assessment.score}/100
                 </span>
-                <span className="font-mono text-[11px] text-[#1F6F5F]">Min Coverage: 1.5x</span>
               </div>
-            </div>
-          )}
-
-          {/* TAB 3: Risk Breakdown */}
-          {activeTab === 'risk' && (
-            <div className="bg-white p-4 rounded-xl border border-stone-200/80 shadow-2xs space-y-3">
-              <h4 className="text-xs font-semibold text-stone-800">
-                Risk Pillar Scores & Safeguards
-              </h4>
-              <div className="space-y-3">
+              <div className="space-y-3.5 pt-1">
                 {structuredData.assessment.riskBreakdown.map((item, idx) => (
-                  <div key={idx} className="space-y-1">
+                  <div key={idx} className="space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-stone-800">{item.category}</span>
+                      <span className="font-bold text-stone-950">
+                        {item.category}
+                      </span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-[#1F6F5F]">
+                        <span className="font-mono text-xs font-extrabold text-[#134e4a]">
                           {item.score}/100
                         </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-[#134e4a] font-bold border border-stone-200">
                           {item.level}
                         </span>
                       </div>
                     </div>
-                    <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                    <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                       <div
-                        style={{ width: `${item.score}%` }}
-                        className="bg-[#2FA084] h-full rounded-full"
+                        style={{ width: `${Math.min(100, Math.max(0, item.score))}%` }}
+                        className="bg-[#1F6F5F] h-full rounded-full transition-all duration-300"
                       />
                     </div>
-                    <p className="text-[11px] text-stone-500">{item.notes}</p>
+                    <p className="text-xs text-stone-800 leading-normal font-medium">{item.notes}</p>
                   </div>
                 ))}
               </div>
             </div>
-          )}
 
-          {/* Officer Approval Actions Bar */}
-          <div className="bg-[#1F6F5F]/5 border border-[#1F6F5F]/20 rounded-xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-xs text-stone-700">
-              <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0" />
-              <span>
-                Recommended for approval with <strong>{structuredData.assessment.recommendedCreditLimit}</strong> under standard warehouse receipt covenants.
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {approvedState ? (
-                <div className="px-3.5 py-1.5 bg-[#2FA084] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Approved for Docket</span>
+            {/* Officer Approval & Override Actions Bar */}
+            <div className="bg-[#1F6F5F]/10 border border-[#1F6F5F]/30 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-stone-900 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-[#2FA084] shrink-0" />
+                  <span>
+                    Recommended for approval with{" "}
+                    <strong className="font-bold text-stone-950">
+                      {structuredData.assessment.recommendedCreditLimit}
+                    </strong>{" "}
+                    under standard warehouse receipt covenants.
+                  </span>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => handleApprove(structuredData.assessment!.applicantName)}
-                  className="w-full sm:w-auto px-3.5 py-1.5 bg-[#2FA084] hover:bg-[#25876f] text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
-                >
-                  Approve Application
-                </button>
-              )}
 
-              <button
-                type="button"
-                onClick={() => onOpenReportModal && onOpenReportModal(structuredData.assessment!)}
-                className="w-full sm:w-auto px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1"
-              >
-                <Printer className="w-3.5 h-3.5 text-stone-500" />
-                <span>Export Memo</span>
-              </button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {approvedState ? (
+                    <div className="px-3.5 py-1.5 bg-[#2FA084] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-2xs">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Decision Recorded</span>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleApprove(
+                            structuredData.assessment!.applicantName,
+                          )
+                        }
+                        className="w-full sm:w-auto px-3.5 py-1.5 bg-[#2FA084] hover:bg-[#25876f] text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowOverrideInput(!showOverrideInput)}
+                        className="w-full sm:w-auto px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                      >
+                        Override
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenReportModal &&
+                      onOpenReportModal(structuredData.assessment!)
+                    }
+                    className="w-full sm:w-auto px-3 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-stone-500" />
+                    <span>Export Memo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Officer Override Form */}
+              {showOverrideInput && !approvedState && (
+                <div className="pt-3 border-t border-[#1F6F5F]/15 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-stone-800 flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+                      <span>
+                        Officer Override Justification (BNR Compliance
+                        Requirement)
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-2 text-xs">
+                      <label className="flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          checked={overrideDecisionType === "OVERRIDE_APPROVE"}
+                          onChange={() =>
+                            setOverrideDecisionType("OVERRIDE_APPROVE")
+                          }
+                        />
+                        <span>Override Approve</span>
+                      </label>
+                      <label className="flex items-center gap-1 cursor-pointer ml-2">
+                        <input
+                          type="radio"
+                          checked={overrideDecisionType === "OVERRIDE_REJECT"}
+                          onChange={() =>
+                            setOverrideDecisionType("OVERRIDE_REJECT")
+                          }
+                        />
+                        <span>Override Reject</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <textarea
+                    rows={2}
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder="Detail the mandatory rationale for modifying or overriding the automated credit scorecard..."
+                    className="w-full bg-white border border-stone-200 rounded-lg p-2.5 text-xs text-stone-800 focus:outline-none focus:ring-1 focus:ring-[#1F6F5F]"
+                  />
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowOverrideInput(false)}
+                      className="px-3 py-1 text-xs text-stone-600 hover:text-stone-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!overrideReason.trim()}
+                      onClick={() =>
+                        handleOverrideSubmit(
+                          structuredData.assessment!.applicantName,
+                        )
+                      }
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold text-white ${
+                        overrideReason.trim()
+                          ? "bg-[#1F6F5F] hover:bg-[#18574a] cursor-pointer"
+                          : "bg-stone-300 cursor-not-allowed"
+                      }`}
+                    >
+                      Submit Justified Override
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Portfolio Risk Structured View */}
-      {structuredData?.type === 'portfolio_risk' && structuredData.portfolio && (
-        <div className="mt-4 space-y-4">
-          <div className="bg-white border border-stone-200/90 rounded-2xl p-4 sm:p-5 shadow-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div>
-                <h3 className="font-semibold text-stone-900 text-sm">
-                  Agricultural Lending Portfolio Risk (Q3 Assessment)
-                </h3>
-                <p className="text-xs text-stone-400">
-                  Total cooperative loans tracked under BNR prudential criteria
-                </p>
-              </div>
-              <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded bg-[#6FCF97]/20 text-[#1F6F5F]">
-                97.6% Performing
-              </span>
-            </div>
-
-            {/* Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
-              <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                <span className="text-[11px] text-stone-500 block">Total Exposure</span>
-                <span className="text-lg font-bold text-[#1F6F5F] font-mono">
-                  {structuredData.portfolio.totalExposure}
-                </span>
-                <span className="text-[10px] text-stone-400 block mt-0.5">
-                  142 active facilities
-                </span>
-              </div>
-              <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                <span className="text-[11px] text-stone-500 block">Non-Performing (NPL)</span>
-                <span className="text-lg font-bold text-[#2FA084] font-mono">
-                  {structuredData.portfolio.nplRate}
-                </span>
-                <span className="text-[10px] text-[#1F6F5F] block mt-0.5 font-medium">
-                  BNR limit &lt; 5.0%
-                </span>
-              </div>
-              <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                <span className="text-[11px] text-stone-500 block">Weighted Avg Score</span>
-                <span className="text-lg font-bold text-stone-800 font-mono">
-                  {structuredData.portfolio.weightedCreditScore}
-                </span>
-                <span className="text-[10px] text-stone-400 block mt-0.5">
-                  Category: Low Risk
-                </span>
-              </div>
-              <div className="bg-stone-50/70 p-3 rounded-xl border border-stone-200/60">
-                <span className="text-[11px] text-stone-500 block">Co-ops Monitored</span>
-                <span className="text-lg font-bold text-stone-800 font-mono">
-                  {structuredData.portfolio.cooperativeCount}
-                </span>
-                <span className="text-[10px] text-stone-400 block mt-0.5">
-                  Across 30 districts
-                </span>
-              </div>
-            </div>
-
-            {/* Regional and Crop breakdown */}
-            <div className="mt-4 pt-4 border-t border-stone-100 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <h4 className="text-xs font-semibold text-stone-700 mb-2">
-                  Regional Exposure Distribution
-                </h4>
-                <div className="space-y-2">
-                  {structuredData.portfolio.regionalDistribution.map((reg) => (
-                    <div key={reg.region} className="text-xs space-y-1">
-                      <div className="flex justify-between text-stone-600">
-                        <span className="truncate pr-2">{reg.region}</span>
-                        <span className="font-mono text-stone-900 font-medium">
-                          {reg.exposure} ({reg.percentage}%)
-                        </span>
-                      </div>
-                      <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
-                        <div
-                          style={{ width: `${reg.percentage * 2}%` }}
-                          className="bg-[#2FA084] h-full rounded-full"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-stone-700 mb-2">
-                  Commodity Concentration
-                </h4>
-                <div className="space-y-2">
-                  {structuredData.portfolio.cropExposure.map((crop) => (
-                    <div
-                      key={crop.crop}
-                      className="flex items-center justify-between p-2 rounded-lg bg-stone-50/70 border border-stone-200/50 text-xs"
-                    >
-                      <span className="font-medium text-stone-800">{crop.crop}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-stone-600">{crop.percentage}%</span>
-                        <span className="text-[10px] text-[#1F6F5F] font-semibold bg-[#6FCF97]/20 px-1.5 py-0.5 rounded">
-                          {crop.riskRating}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Risk Report Structured View */}
-      {structuredData?.type === 'risk_report' && structuredData.report && (
-        <div className="mt-4 bg-white border border-stone-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-start justify-between pb-3 border-b border-stone-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-[#1F6F5F]" />
-                <h3 className="font-semibold text-stone-900 text-sm">
-                  {structuredData.report.reportTitle}
-                </h3>
-              </div>
-              <p className="text-xs text-stone-400 mt-0.5">
-                Docket: {structuredData.report.memoId} · Prepared for Credit Committee
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onOpenReportModal && onOpenReportModal(structuredData.report!)}
-              className="px-3 py-1.5 text-xs font-medium text-[#1F6F5F] bg-[#6FCF97]/25 hover:bg-[#6FCF97]/40 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print Memorandum</span>
-            </button>
-          </div>
-
-          <div className="text-xs text-stone-700 bg-stone-50 p-3.5 rounded-xl border border-stone-200/60 leading-relaxed">
-            <span className="font-semibold text-stone-900 block mb-1">
-              Executive Assessment
-            </span>
-            {structuredData.report.executiveSummary}
-          </div>
-
-          <div>
-            <h4 className="text-xs font-semibold text-stone-700 mb-2">
-              Key Committee Findings
-            </h4>
-            <div className="space-y-1.5">
-              {structuredData.report.keyFindings.map((finding, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs text-stone-600">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-[#2FA084] shrink-0 mt-0.5" />
-                  <span>{finding}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-xs font-semibold text-stone-700 mb-2">
-              Stress & Sensitivity Analysis
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {structuredData.report.sensitivityAnalysis.map((sen, i) => (
-                <div
-                  key={i}
-                  className="p-2.5 rounded-xl border border-stone-200/80 bg-stone-50/50 text-xs"
-                >
-                  <p className="font-semibold text-stone-800">{sen.scenario}</p>
-                  <p className="text-[11px] text-amber-700 mt-1">{sen.impact}</p>
-                  <p className="text-[10px] text-stone-500 mt-1 pt-1 border-t border-stone-200/50">
-                    {sen.resilience}
+      {structuredData?.type === "portfolio_risk" &&
+        structuredData.portfolio && (
+          <div className="mt-4 space-y-4">
+            <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div>
+                  <h3 className="font-bold text-stone-950 text-sm">
+                    Agricultural Lending Portfolio Risk (Q3 Assessment)
+                  </h3>
+                  <p className="text-xs text-stone-700 font-medium">
+                    Total cooperative loans tracked under BNR prudential criteria
                   </p>
                 </div>
-              ))}
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#6FCF97]/25 text-[#134e4a] border border-[#2FA084]/30">
+                  97.6% Performing
+                </span>
+              </div>
+
+              {/* Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4">
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
+                    Total Exposure
+                  </span>
+                  <span className="text-lg font-black text-[#134e4a] font-mono">
+                    {structuredData.portfolio.totalExposure}
+                  </span>
+                  <span className="text-[10px] text-stone-600 font-medium block mt-0.5">
+                    142 active facilities
+                  </span>
+                </div>
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
+                    Non-Performing (NPL)
+                  </span>
+                  <span className="text-lg font-black text-[#2FA084] font-mono">
+                    {structuredData.portfolio.nplRate}
+                  </span>
+                  <span className="text-[10px] text-[#134e4a] block mt-0.5 font-bold">
+                    BNR limit &lt; 5.0%
+                  </span>
+                </div>
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
+                    Weighted Avg Score
+                  </span>
+                  <span className="text-lg font-black text-stone-950 font-mono">
+                    {structuredData.portfolio.weightedCreditScore}
+                  </span>
+                  <span className="text-[10px] text-stone-600 font-semibold block mt-0.5">
+                    Category: Low Risk
+                  </span>
+                </div>
+                <div className="bg-stone-50 p-3 rounded-xl border border-stone-200">
+                  <span className="text-[11px] text-stone-700 font-bold block">
+                    Co-ops Monitored
+                  </span>
+                  <span className="text-lg font-black text-stone-950 font-mono">
+                    {structuredData.portfolio.cooperativeCount}
+                  </span>
+                  <span className="text-[10px] text-stone-600 font-semibold block mt-0.5">
+                    Across 30 districts
+                  </span>
+                </div>
+              </div>
+
+              {/* Regional and Crop breakdown */}
+              <div className="mt-4 pt-4 border-t border-stone-200 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-xs font-bold text-stone-950 mb-2">
+                    Regional Exposure Distribution
+                  </h4>
+                  <div className="space-y-2">
+                    {structuredData.portfolio.regionalDistribution.map(
+                      (reg) => (
+                        <div key={reg.region} className="text-xs space-y-1">
+                          <div className="flex justify-between text-stone-800 font-medium">
+                            <span className="truncate pr-2">{reg.region}</span>
+                            <span className="font-mono text-stone-950 font-bold">
+                              {reg.exposure} ({reg.percentage}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
+                            <div
+                              style={{ width: `${reg.percentage * 2}%` }}
+                              className="bg-[#1F6F5F] h-full rounded-full"
+                            />
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-bold text-stone-950 mb-2">
+                    Commodity Concentration
+                  </h4>
+                  <div className="space-y-2">
+                    {structuredData.portfolio.cropExposure.map((crop) => (
+                      <div
+                        key={crop.crop}
+                        className="flex items-center justify-between p-2.5 rounded-lg bg-stone-50 border border-stone-200 text-xs"
+                      >
+                        <span className="text-stone-950 font-semibold">{crop.crop}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-stone-950">
+                            {crop.percentage}%
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#6FCF97]/25 text-[#134e4a] border border-[#2FA084]/30">
+                            {crop.riskRating}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          <div className="p-2.5 bg-[#1F6F5F]/5 border border-[#1F6F5F]/15 rounded-xl text-[11px] text-stone-600 flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-[#2FA084] shrink-0" />
-            <span>{structuredData.report.regulatoryNotes}</span>
-          </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

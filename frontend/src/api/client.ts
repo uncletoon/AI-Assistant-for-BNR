@@ -98,12 +98,15 @@ const BASE_URL = '/api/v1';
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
+  const isFormData = options?.body instanceof FormData;
+  const headers: Record<string, string> = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(options?.headers as Record<string, string>),
+  };
+
   const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
     ...options,
+    headers,
   });
 
   if (!response.ok) {
@@ -153,10 +156,102 @@ export const api = {
     return fetchJson<{ status: string; data: FairnessSummaryRow[] }>('/monitoring/fairness');
   },
 
-  async sendChatMessage(message: string): Promise<ChatApiResponse> {
+  async sendChatMessage(
+    message: string,
+    context?: {
+      caseId?: string;
+      cooperativeId?: string;
+      conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    }
+  ): Promise<ChatApiResponse> {
     return fetchJson<ChatApiResponse>('/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, context }),
+    });
+  },
+
+  async evaluateLoan(payload: {
+    applicationText?: string;
+    offtakeText?: string;
+    applicationData?: unknown;
+    offtakeData?: unknown;
+  }): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>('/scoring/evaluate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async scoreCase(caseId: string): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>(`/scoring/cases/${caseId}/score`, {
+      method: 'POST',
+    });
+  },
+
+  async extractDocuments(formData: FormData): Promise<{
+    status: string;
+    data: {
+      extractedApplication: any;
+      extractedOfftake?: any;
+    };
+  }> {
+    return fetchJson('/scoring/extract', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async evaluateLoanMultipart(formData: FormData): Promise<{ status: string; data: any }> {
+    return fetchJson('/scoring/evaluate', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  async simulateScenario(
+    caseId: string,
+    payload: {
+      requestedAmountRwf?: string;
+      tenorMonths?: number;
+      contractedVolumeKg?: number;
+      agreedPriceRwfKg?: number;
+      hasVerifiedOfftakeContract?: boolean;
+      cultivatedHectares?: number;
+      storageFacilityType?: string;
+      season?: string;
+    }
+  ): Promise<{ status: string; data: any }> {
+    return fetchJson(`/scoring/cases/${caseId}/simulate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async recordDecision(
+    caseId: string,
+    payload: {
+      decision: 'APPROVE' | 'REJECT' | 'OVERRIDE_APPROVE' | 'OVERRIDE_REJECT';
+      approvedAmountRwf?: string;
+      reason?: string;
+      recommendations?: string;
+      decidedBy?: string;
+    }
+  ): Promise<{ status: string; data: unknown }> {
+    return fetchJson<{ status: string; data: unknown }>(`/scoring/cases/${caseId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteLoanCase(caseId: string): Promise<{ status: string; message: string }> {
+    return fetchJson<{ status: string; message: string }>(`/scoring/cases/${caseId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async deleteAllLoanCases(): Promise<{ status: string; message: string }> {
+    return fetchJson<{ status: string; message: string }>('/scoring/cases', {
+      method: 'DELETE',
     });
   },
 };

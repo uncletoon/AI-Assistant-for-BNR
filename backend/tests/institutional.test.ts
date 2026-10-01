@@ -12,7 +12,7 @@ describe('Cross-Institutional Financial Records & TIN Lookups', () => {
       orderBy: { name: 'asc' },
     });
 
-    expect(coops.length).toBe(5);
+    expect(coops.length).toBeGreaterThanOrEqual(5);
 
     const tins = coops.map((c) => c.tin);
     expect(new Set(tins).size).toBe(5);

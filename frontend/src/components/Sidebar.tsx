@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   X,
   FileCheck2,
+  Trash2,
 } from 'lucide-react';
 import { AssessmentHistoryItem } from '../types';
 
@@ -19,6 +20,7 @@ interface SidebarProps {
   onSelectAssessment: (item: AssessmentHistoryItem) => void;
   onNewAssessment: () => void;
   onOpenRegistry: () => void;
+  onDeleteAssessment?: (id: string) => void;
   cooperativesCount: number;
   isOpen: boolean;
   onClose: () => void;
@@ -31,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectAssessment,
   onNewAssessment,
   onOpenRegistry,
+  onDeleteAssessment,
   cooperativesCount,
   isOpen,
   onClose,
@@ -135,27 +138,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
             filtered.map((item) => {
               const isActive = activeId === item.id;
               return (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => {
-                    onSelectAssessment(item);
-                    onClose();
-                  }}
                   className={`w-full text-left p-2.5 rounded-xl text-xs transition-all duration-150 group relative flex flex-col gap-1 cursor-pointer ${
                     isActive
                       ? 'bg-white shadow-xs border border-stone-200/90 text-stone-900'
                       : 'hover:bg-stone-200/50 text-stone-700'
                   }`}
+                  onClick={() => {
+                    onSelectAssessment(item);
+                    onClose();
+                  }}
                 >
                   <div className="flex items-start justify-between gap-1.5">
-                    <span className="font-medium text-stone-900 line-clamp-1 group-hover:text-[#1F6F5F] transition-colors">
+                    <span className="font-medium text-stone-900 line-clamp-1 group-hover:text-[#1F6F5F] transition-colors flex-1">
                       {item.title}
                     </span>
-                    {item.score && (
-                      <span className="shrink-0 text-[10px] font-semibold text-[#1F6F5F] bg-[#6FCF97]/25 px-1.5 py-0.5 rounded">
-                        {item.score}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {item.score && (
+                        <span className="text-[10px] font-semibold text-[#1F6F5F] bg-[#6FCF97]/25 px-1.5 py-0.5 rounded">
+                          {item.score}
+                        </span>
+                      )}
+                      {onDeleteAssessment && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Delete assessment for ${item.title} and its records from database?`)) {
+                              onDeleteAssessment(item.id);
+                            }
+                          }}
+                          title="Delete assessment and records from database"
+                          className="opacity-0 group-hover:opacity-100 p-1 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-all cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] text-stone-400">
@@ -183,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </span>
                     </div>
                   )}
-                </button>
+                </div>
               );
             })
           )}

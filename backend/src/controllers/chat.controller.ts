@@ -3,7 +3,7 @@ import { aiDataRetrieverService } from '../services/ai.service.js';
 
 export async function handleChatMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { message } = req.body;
+    const { message, context } = req.body;
 
     if (!message || typeof message !== 'string') {
       res.status(400).json({
@@ -13,7 +13,7 @@ export async function handleChatMessage(req: Request, res: Response, next: NextF
       return;
     }
 
-    const result = await aiDataRetrieverService.processQuery(message);
+    const result = await aiDataRetrieverService.processQuery(message, context);
 
     res.json({
       status: 'success',
